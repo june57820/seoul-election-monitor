@@ -3,13 +3,28 @@ from __future__ import annotations
 import base64
 from html import escape
 from pathlib import Path
-from typing import Iterable
+from urllib.parse import quote
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from data_loader import CANDIDATE_COLORS, CANDIDATE_IMAGES, CANDIDATE_NAMES, OFFICIAL_CHANNELS, format_number
+from data_loader import (
+    CANDIDATE_COLORS,
+    CANDIDATE_ORDER,
+    DEMO_WARNING,
+    ISSUE_ORDER,
+    METRIC_OPTIONS,
+    PERIOD_OPTIONS,
+    REACTION_TYPES,
+    SOURCE_LABELS,
+    SOURCE_OPTIONS,
+    format_number,
+    format_percent,
+    get_candidate_image,
+    period_context,
+    short_date_text,
+)
 
 
 FONT_STACK = "'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif"
@@ -22,33 +37,47 @@ def inject_css() -> None:
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
         :root {{
+            --navy-950: #071528;
+            --navy-900: #0b1d34;
+            --navy-800: #102846;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --line: #dbe5f2;
+            --surface: #ffffff;
+            --surface-soft: #f8fbff;
+            --bg: #f3f7fc;
             --blue: #2563eb;
             --blue-dark: #1d4ed8;
-            --blue-soft: #eef5ff;
+            --blue-soft: #eff6ff;
             --red: #ef3340;
             --red-dark: #dc2626;
             --red-soft: #fff1f2;
-            --ink: #111827;
-            --muted: #64748b;
-            --line: #dbe3ef;
-            --surface: #ffffff;
-            --soft: #f8fafc;
+            --green: #22c55e;
+            --green-dark: #15803d;
+            --green-soft: #f0fdf4;
+            --gray-soft: #f1f5f9;
+            --orange: #f97316;
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --shadow-card: 0 12px 34px rgba(15, 23, 42, 0.07);
+            --shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.045);
         }}
 
         html, body, .stApp, [class^="css"], [class*=" css"] {{
             font-family: {FONT_STACK};
-            letter-spacing: 0;
+            letter-spacing: 0 !important;
+            color: var(--ink);
         }}
 
         .stApp {{
             background:
-                linear-gradient(180deg, #ffffff 0%, #f8fafc 42%, #f7faff 100%);
-            color: var(--ink);
+                radial-gradient(circle at 84% 8%, rgba(37, 99, 235, 0.06), transparent 28%),
+                linear-gradient(180deg, #f8fbff 0%, #f3f7fc 45%, #eef4fb 100%);
         }}
 
         .block-container {{
-            max-width: 1540px;
-            padding: 1rem 1.5rem 2.5rem;
+            max-width: 1600px;
+            padding: 1rem 1.55rem 2.5rem 11.7rem;
         }}
 
         #MainMenu, footer, [data-testid="stDecoration"], [data-testid="stToolbar"],
@@ -61,76 +90,217 @@ def inject_css() -> None:
             height: 0;
         }}
 
-        h1, h2, h3, h4, p, span, div, button, label {{
+        h1, h2, h3, h4, p, div, button, label, input {{
             font-family: {FONT_STACK} !important;
             letter-spacing: 0 !important;
         }}
 
-        .top-shell {{
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 18px;
-            border-bottom: 1px solid var(--line);
-            padding: 8px 0 18px;
-            margin-bottom: 10px;
+        button, input, textarea, select {{
+            font-variant-numeric: tabular-nums;
         }}
 
-        .brand-wrap {{
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex: 1;
-            min-width: 0;
+        .app-sidebar {{
+            position: fixed;
+            z-index: 100;
+            top: 0;
+            left: 0;
+            width: 10.8rem;
+            height: 100vh;
+            padding: 1.1rem 0.75rem;
+            background:
+                linear-gradient(180deg, rgba(7, 21, 40, 0.98), rgba(8, 30, 53, 0.98)),
+                var(--navy-950);
+            color: #e5eefb;
+            box-shadow: 8px 0 28px rgba(15, 23, 42, 0.18);
         }}
 
-        .logo-mark {{
-            width: 58px;
-            height: 58px;
-            border-radius: 16px;
-            background: linear-gradient(135deg, #eaf2ff, #ffffff);
-            border: 1px solid #bfdbfe;
+        .sidebar-brand {{
+            height: 130px;
+            display: grid;
+            align-content: start;
+            gap: 10px;
+            padding: 0.65rem 0.45rem;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.13);
+            margin-bottom: 0.85rem;
+        }}
+
+        .brand-line {{
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
             display: grid;
             place-items: center;
-            color: var(--blue);
-            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.11);
+            border: 1px solid rgba(147, 197, 253, 0.35);
+            background: rgba(37, 99, 235, 0.14);
+            color: #bfdbfe;
+            font-size: 23px;
+            font-weight: 900;
         }}
 
-        .logo-mark svg {{
-            width: 36px;
-            height: 36px;
-        }}
-
-        .brand-title {{
-            font-size: clamp(22px, 1.75vw, 30px);
-            font-weight: 860;
-            line-height: 1.2;
-            color: #0f172a;
-            margin: 0;
+        .sidebar-title {{
+            font-weight: 880;
+            font-size: 17px;
+            line-height: 1.25;
             word-break: keep-all;
         }}
 
-        .brand-subtitle {{
-            font-size: 15px;
-            color: var(--muted);
-            margin-top: 8px;
+        .sidebar-menu {{
+            display: grid;
+            gap: 0.35rem;
         }}
 
-        .dday-card {{
-            border: 1px solid var(--line);
-            background: #fff;
+        .sidebar-item {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 46px;
+            padding: 0 0.65rem;
             border-radius: 10px;
-            padding: 13px 18px;
-            font-weight: 760;
-            color: #111827;
-            white-space: nowrap;
-            box-shadow: 0 5px 18px rgba(15, 23, 42, 0.04);
+            color: #cbd5e1 !important;
+            text-decoration: none !important;
+            font-weight: 730;
+            font-size: 14px;
         }}
 
-        .dday-card b {{
-            color: var(--red);
-            font-size: 21px;
-            margin-left: 6px;
+        .sidebar-item.active {{
+            background: linear-gradient(135deg, #2f74e8, #1d4ed8);
+            color: #fff !important;
+            box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
+        }}
+
+        .sidebar-item.disabled {{
+            color: rgba(203, 213, 225, 0.48) !important;
+            cursor: default;
+        }}
+
+        .sidebar-footer {{
+            position: absolute;
+            left: 1rem;
+            right: 1rem;
+            bottom: 1rem;
+            color: rgba(226, 232, 240, 0.72);
+            font-size: 12px;
+            line-height: 1.55;
+        }}
+
+        .top-header {{
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 390px 170px;
+            gap: 14px;
+            align-items: center;
+            margin: 2px 0 12px;
+        }}
+
+        .title-wrap h1 {{
+            font-size: clamp(25px, 2.4vw, 36px);
+            line-height: 1.16;
+            margin: 0;
+            font-weight: 900;
+            color: #071528;
+            word-break: keep-all;
+        }}
+
+        .title-wrap p {{
+            margin: 7px 0 0;
+            color: var(--muted);
+            font-size: 15px;
+            font-weight: 620;
+        }}
+
+        .top-note, .election-card {{
+            min-height: 82px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.84);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-soft);
+            padding: 14px 16px;
+        }}
+
+        .top-note {{
+            display: grid;
+            grid-template-columns: 26px 1fr;
+            gap: 9px;
+            color: #243041;
+            font-size: 14px;
+            line-height: 1.5;
+            font-weight: 650;
+        }}
+
+        .note-icon {{
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: var(--blue-soft);
+            color: var(--blue-dark);
+            font-weight: 900;
+            border: 1px solid #bfdbfe;
+        }}
+
+        .election-card {{
+            text-align: center;
+            display: grid;
+            align-content: center;
+            gap: 2px;
+        }}
+
+        .election-card .label {{
+            color: var(--blue-dark);
+            font-size: 13px;
+            font-weight: 850;
+        }}
+
+        .election-card .dday {{
+            color: var(--blue-dark);
+            font-size: 18px;
+            font-weight: 920;
+        }}
+
+        .election-card .date {{
+            color: var(--ink);
+            font-size: 15px;
+            font-weight: 760;
+        }}
+
+        .top-tabs {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(120px, 1fr));
+            gap: 4px;
+            max-width: 590px;
+            margin: 0 0 10px;
+        }}
+
+        .tab-link {{
+            display: grid;
+            place-items: center;
+            height: 42px;
+            border-bottom: 3px solid transparent;
+            color: #334155 !important;
+            text-decoration: none !important;
+            font-size: 15px;
+            font-weight: 820;
+        }}
+
+        .tab-link.active {{
+            color: var(--blue-dark) !important;
+            border-bottom-color: var(--blue-dark);
+        }}
+
+        .control-band {{
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.74);
+            box-shadow: var(--shadow-soft);
+            border-radius: var(--radius-md);
+            padding: 12px 14px 8px;
+            margin-bottom: 14px;
+        }}
+
+        .control-label {{
+            color: #334155;
+            font-size: 13px;
+            font-weight: 850;
+            margin-bottom: 6px;
         }}
 
         div[role="radiogroup"] {{
@@ -141,16 +311,16 @@ def inject_css() -> None:
             padding: 0;
             overflow: hidden;
             width: fit-content;
-            box-shadow: 0 5px 18px rgba(15, 23, 42, 0.04);
+            box-shadow: none;
         }}
 
         div[role="radiogroup"] label {{
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            min-height: 42px;
-            min-width: 72px;
-            padding: 0 16px !important;
+            min-height: 38px;
+            min-width: 68px;
+            padding: 0 14px !important;
             border-right: 1px solid var(--line);
             margin: 0 !important;
             text-align: center !important;
@@ -160,7 +330,8 @@ def inject_css() -> None:
             width: 100%;
             margin: 0 !important;
             text-align: center !important;
-            font-weight: 760;
+            font-weight: 810;
+            font-size: 14px;
         }}
 
         div[role="radiogroup"] label:last-child {{
@@ -171,301 +342,204 @@ def inject_css() -> None:
             display: none;
         }}
 
-        div[role="radiogroup"] label[data-baseweb="radio"] {{
-            background: #fff;
-        }}
-
         div[role="radiogroup"] label:has(input:checked) {{
             background: linear-gradient(135deg, #2f74e8, #1d4ed8);
             color: #fff !important;
         }}
 
-        div.stButton > button {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            min-height: 44px;
-            border-radius: 8px;
+        div[role="radiogroup"] label:has(input:checked) p {{
+            color: #fff !important;
+        }}
+
+        .stButton > button {{
+            min-height: 40px;
+            border-radius: 10px;
             border: 1px solid var(--line);
-            background: #ffffff;
-            color: #111827;
+            background: #fff;
+            color: #0f172a;
+            font-weight: 820;
             box-shadow: none;
-            padding: 0 8px;
-            transition: all 0.16s ease;
+            transition: all 0.15s ease;
         }}
 
-        div.stButton > button p {{
-            font-size: 14px;
-            line-height: 1.15;
-            font-weight: 760;
-            margin: 0;
-            word-break: keep-all;
-        }}
-
-        div.stButton > button:hover {{
+        .stButton > button:hover {{
             border-color: #93c5fd;
             color: var(--blue-dark);
         }}
 
-        div.stButton > button[kind="primary"],
-        div.stButton > button[data-testid="stBaseButton-primary"] {{
+        .stButton > button[kind="primary"],
+        .stButton > button[data-testid="stBaseButton-primary"] {{
             background: linear-gradient(135deg, #2f74e8, #1d4ed8) !important;
             border-color: #1d4ed8 !important;
-            color: #ffffff !important;
-        }}
-
-        div.stButton > button[kind="primary"] p,
-        div.stButton > button[data-testid="stBaseButton-primary"] p {{
-            color: #ffffff !important;
-        }}
-
-        .nav-shell {{
-            border-bottom: 1px solid var(--line);
-            margin: 4px -1.5rem 18px;
-            padding: 0 1.5rem;
-            background: rgba(255,255,255,0.72);
-            backdrop-filter: blur(12px);
-        }}
-
-        .nav-row {{
-            display: grid;
-            grid-template-columns: repeat(8, minmax(110px, 1fr));
-            gap: 4px;
-        }}
-
-        .nav-item {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 15px 8px 14px;
-            border-bottom: 3px solid transparent;
-            color: #1f2937;
-            font-size: 15px;
-            font-weight: 720;
-            white-space: nowrap;
-        }}
-
-        .nav-item.active {{
-            color: var(--blue-dark);
-            border-bottom-color: var(--blue-dark);
-            background: linear-gradient(180deg, rgba(37, 99, 235, 0.05), rgba(37, 99, 235, 0));
+            color: #fff !important;
         }}
 
         .section-title {{
             display: flex;
             align-items: baseline;
-            gap: 12px;
-            margin: 8px 0 12px;
+            gap: 10px;
+            margin: 16px 0 10px;
         }}
 
         .section-title h2 {{
-            font-size: 25px;
-            line-height: 1.2;
             margin: 0;
-            font-weight: 850;
+            font-size: 21px;
+            line-height: 1.22;
+            color: #0f172a;
+            font-weight: 900;
+            word-break: keep-all;
         }}
 
         .section-title span {{
-            font-size: 14px;
             color: var(--muted);
+            font-size: 13px;
+            font-weight: 620;
         }}
 
         .card {{
-            background: rgba(255,255,255,0.92);
+            background: rgba(255, 255, 255, 0.92);
             border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 18px;
-            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-card);
+            padding: 16px;
             text-align: left;
         }}
 
-        .compact-card {{
-            padding: 14px;
+        .card.tight {{
+            padding: 13px;
         }}
 
-        .notice {{
-            border: 1px solid #bfdbfe;
-            border-radius: 8px;
-            background: #f8fbff;
-            color: #1e3a8a;
-            padding: 14px 18px;
-            line-height: 1.65;
-            font-weight: 560;
+        .hero-card {{
+            border-radius: var(--radius-lg);
+            box-shadow: 0 16px 42px rgba(15, 23, 42, 0.08);
         }}
 
-        .notice.warning {{
-            background: #fff7f7;
-            border-color: #fecdd3;
-            color: #991b1b;
-        }}
-
-        .notice.gray {{
-            background: #f8fafc;
-            border-color: #dbe3ef;
-            color: #334155;
-        }}
-
-        .candidate-home {{
+        .candidate-card {{
             display: grid;
-            grid-template-columns: 140px 1fr;
-            gap: 18px;
-            align-items: center;
-        }}
-
-        .avatar {{
-            width: 140px;
-            aspect-ratio: 1 / 1;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: linear-gradient(145deg, #f1f5f9 0%, #ffffff 55%, #e2e8f0 100%);
-            display: grid;
-            place-items: center;
-            position: relative;
+            grid-template-columns: 104px 1fr;
+            gap: 14px;
+            min-height: 166px;
             overflow: hidden;
         }}
 
-        .candidate-photo,
-        .profile-photo {{
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-            object-fit: cover !important;
-            object-position: center top !important;
+        .candidate-card.blue {{
+            background: linear-gradient(135deg, #ffffff 0%, #f6faff 100%);
+            border-color: #bfdbfe;
         }}
 
-        .candidate-photo.photo-OSH,
-        .profile-photo.photo-OSH {{
-            object-position: center top !important;
+        .candidate-card.red {{
+            background: linear-gradient(135deg, #ffffff 0%, #fff7f7 100%);
+            border-color: #fecdd3;
         }}
 
-        .avatar:has(img)::before,
-        .avatar:has(img)::after,
-        .profile-avatar:has(img)::before,
-        .profile-avatar:has(img)::after {{
-            display: none;
-        }}
-
-        .avatar:before {{
-            content: "";
-            position: absolute;
-            width: 64px;
-            height: 64px;
-            border-radius: 999px;
-            top: 25px;
-            background: #cbd5e1;
-        }}
-
-        .avatar:after {{
-            content: "";
-            position: absolute;
+        .candidate-photo-wrap {{
             width: 104px;
-            height: 70px;
-            border-radius: 50% 50% 0 0;
-            bottom: 0;
-            background: #334155;
+            height: 132px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            background: #eef2f7;
+            align-self: center;
         }}
 
-        .avatar-initial {{
-            position: relative;
-            z-index: 3;
-            margin-top: -8px;
-            font-size: 25px;
-            font-weight: 900;
-            color: #ffffff;
-        }}
-
-        .avatar.red:after {{
-            background: #3f1f25;
-        }}
-
-        .avatar.blue:after {{
-            background: #1e3a5f;
+        .candidate-photo-wrap img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
+            display: block;
         }}
 
         .candidate-name-row {{
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }}
-
-        .badge {{
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 45px;
-            height: 34px;
-            padding: 0 10px;
-            border-radius: 8px;
-            border: 1px solid;
-            font-size: 15px;
-            font-weight: 850;
-        }}
-
-        .badge.blue {{
-            color: var(--blue-dark);
-            border-color: #bfdbfe;
-            background: #f4f8ff;
-        }}
-
-        .badge.red {{
-            color: var(--red-dark);
-            border-color: #fecdd3;
-            background: #fff7f7;
+            gap: 8px;
+            margin-bottom: 8px;
         }}
 
         .candidate-name {{
-            font-size: 27px;
-            font-weight: 880;
-            color: #0f172a;
+            font-size: 26px;
+            line-height: 1.12;
+            font-weight: 920;
+            color: #071528;
         }}
 
-        .metric-grid {{
+        .party-pill, .badge {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 24px;
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-size: 12px;
+            font-weight: 850;
+            white-space: nowrap;
+        }}
+
+        .party-pill.blue, .badge.blue {{
+            color: var(--blue-dark);
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+        }}
+
+        .party-pill.red, .badge.red {{
+            color: var(--red-dark);
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+        }}
+
+        .badge.green {{
+            color: var(--green-dark);
+            background: var(--green-soft);
+            border: 1px solid #bbf7d0;
+        }}
+
+        .badge.gray {{
+            color: #475569;
+            background: var(--gray-soft);
+            border: 1px solid #e2e8f0;
+        }}
+
+        .badge.orange {{
+            color: #c2410c;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+        }}
+
+        .metric-row {{
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            border-top: 1px solid var(--line);
-            margin-top: 12px;
-        }}
-
-        .metric-cell {{
-            padding: 12px 0 0;
-        }}
-
-        .metric-cell + .metric-cell {{
-            border-left: 1px solid var(--line);
-            padding-left: 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 10px;
         }}
 
         .metric-label {{
-            font-size: 13px;
             color: var(--muted);
-            margin-bottom: 4px;
+            font-size: 12px;
+            font-weight: 720;
+            line-height: 1.35;
         }}
 
         .metric-value {{
-            font-size: 28px;
-            font-weight: 900;
-            line-height: 1.08;
+            font-size: 19px;
+            line-height: 1.1;
+            font-weight: 930;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            word-break: keep-all;
+            color: #0f172a;
         }}
 
-        .blue-text {{
-            color: var(--blue-dark);
-        }}
-
-        .red-text {{
-            color: var(--red-dark);
-        }}
-
-        .green-text {{
-            color: #15803d;
-        }}
+        .blue-text {{ color: var(--blue-dark); }}
+        .red-text {{ color: var(--red-dark); }}
+        .green-text {{ color: var(--green-dark); }}
+        .muted-text {{ color: var(--muted); }}
 
         .chip-row {{
             display: flex;
-            gap: 8px;
             flex-wrap: wrap;
+            gap: 7px;
             margin-top: 10px;
         }}
 
@@ -474,398 +548,340 @@ def inject_css() -> None:
             align-items: center;
             justify-content: center;
             border-radius: 999px;
-            padding: 7px 12px;
-            font-weight: 730;
-            font-size: 14px;
+            padding: 6px 10px;
+            font-size: 12px;
             line-height: 1;
-            border: 1px solid;
+            font-weight: 820;
+            white-space: nowrap;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #334155;
         }}
 
         .chip.blue {{
-            color: #1d4ed8;
-            border-color: #d6e6ff;
-            background: #edf5ff;
+            color: var(--blue-dark);
+            background: var(--blue-soft);
+            border-color: #bfdbfe;
         }}
 
         .chip.red {{
-            color: #b91c1c;
-            border-color: #ffe0e0;
-            background: #fff0f1;
-        }}
-
-        .chip.gray {{
-            color: #334155;
-            border-color: #e2e8f0;
-            background: #f8fafc;
+            color: var(--red-dark);
+            background: var(--red-soft);
+            border-color: #fecdd3;
         }}
 
         .chip.green {{
-            color: #15803d;
+            color: var(--green-dark);
+            background: var(--green-soft);
             border-color: #bbf7d0;
-            background: #f0fdf4;
         }}
 
-        .versus-bar-wrap {{
-            text-align: center;
-        }}
-
-        .versus-title {{
-            font-size: 20px;
-            font-weight: 850;
-            margin-bottom: 4px;
-        }}
-
-        .versus-subtitle {{
-            color: var(--muted);
-            font-size: 13px;
-            margin-bottom: 20px;
-        }}
-
-        .versus-bar {{
-            display: grid;
-            grid-template-columns: var(--left) var(--right);
-            position: relative;
-            overflow: visible;
-            height: 68px;
-            border-radius: 8px;
-            margin: 0 auto;
-            max-width: 620px;
-            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
-        }}
-
-        .versus-segment {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 25px;
-            font-weight: 900;
-        }}
-
-        .versus-segment.left {{
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            border-radius: 8px 0 0 8px;
-        }}
-
-        .versus-segment.right {{
-            background: linear-gradient(135deg, #fb4856, #dc2626);
-            border-radius: 0 8px 8px 0;
-        }}
-
-        .vs-bubble {{
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            width: 68px;
-            height: 68px;
-            border-radius: 999px;
-            background: #fff;
-            display: grid;
-            place-items: center;
-            color: #111827;
-            font-weight: 900;
-            font-size: 18px;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.20);
-        }}
-
-        .mini-note {{
-            margin-top: 18px;
-            color: #475569;
+        .note-card, .warning-card {{
+            border-radius: 14px;
+            padding: 13px 15px;
+            line-height: 1.6;
             font-size: 14px;
-            line-height: 1.65;
+            font-weight: 650;
         }}
 
-        .ai-box {{
-            display: grid;
-            grid-template-columns: 58px 1fr;
-            gap: 16px;
-            align-items: center;
-            border: 1px solid #bfd7ff;
+        .note-card {{
+            border: 1px solid #bfdbfe;
             background: #f8fbff;
-            border-radius: 8px;
-            padding: 17px 20px;
-            margin: 18px 0;
+            color: #1e3a8a;
         }}
 
-        .ai-icon {{
-            width: 58px;
-            height: 58px;
+        .warning-card {{
+            border: 1px solid #fecdd3;
+            background: #fff7f7;
+            color: #991b1b;
+        }}
+
+        .insight-card {{
+            min-height: 166px;
+            display: grid;
+            align-content: center;
+            text-align: center;
+            border-color: #d7e6fb;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+        }}
+
+        .insight-kicker {{
+            display: inline-flex;
+            justify-self: center;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 9px;
             border-radius: 999px;
-            display: grid;
-            place-items: center;
-            background: #e8f1ff;
+            background: var(--blue-soft);
             color: var(--blue-dark);
-            font-weight: 900;
-        }}
-
-        .ai-title {{
+            font-size: 12px;
             font-weight: 850;
-            margin-bottom: 4px;
-        }}
-
-        .ai-text {{
-            color: #243041;
-            line-height: 1.65;
-            font-size: 15px;
-        }}
-
-        .kpi-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }}
-
-        .two-col-grid {{
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-            margin-top: 14px;
-        }}
-
-        .keyword-change-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-        }}
-
-        .kpi-mini {{
-            border: 1px solid var(--line);
-            background: #fff;
-            border-radius: 8px;
-            padding: 15px;
-        }}
-
-        .kpi-mini-title {{
-            color: #334155;
-            font-weight: 800;
             margin-bottom: 8px;
         }}
 
-        .kpi-mini-value {{
-            color: #0f172a;
-            font-size: 24px;
+        .insight-title {{
+            font-size: 18px;
             font-weight: 900;
+            line-height: 1.45;
+            word-break: keep-all;
         }}
 
-        .issue-row {{
+        .insight-body {{
+            color: #475569;
+            line-height: 1.55;
+            font-size: 13px;
+            margin-top: 8px;
+        }}
+
+        .issue-list {{
             display: grid;
-            grid-template-columns: 86px 54px 1fr 54px;
+            gap: 7px;
+        }}
+
+        .issue-link {{
+            display: grid;
+            grid-template-columns: 74px 1fr 54px;
             align-items: center;
             gap: 10px;
-            margin: 13px 0;
-            font-size: 14px;
-            font-weight: 730;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            color: #0f172a !important;
+            text-decoration: none !important;
         }}
 
-        .issue-track {{
-            display: grid;
-            grid-template-columns: var(--blueShare) var(--redShare);
+        .issue-link.active {{
+            border-color: #93c5fd;
+            background: linear-gradient(135deg, #f8fbff, #eff6ff);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.10);
+        }}
+
+        .issue-name {{
+            font-size: 14px;
+            font-weight: 880;
+        }}
+
+        .share-track {{
             height: 10px;
             border-radius: 999px;
+            display: grid;
+            grid-template-columns: var(--jwo) var(--osh);
             overflow: hidden;
-            background: #e5e7eb;
+            background: #e2e8f0;
         }}
 
-        .issue-blue {{
+        .share-blue {{
             background: linear-gradient(90deg, #60a5fa, #2563eb);
         }}
 
-        .issue-red {{
+        .share-red {{
             background: linear-gradient(90deg, #fb7185, #ef3340);
         }}
 
-        .word-cloud {{
-            min-height: 250px;
+        .issue-percent {{
+            font-variant-numeric: tabular-nums;
+            font-size: 12px;
+            text-align: right;
+            color: var(--muted);
+            font-weight: 780;
+        }}
+
+        .keyword-cloud {{
+            min-height: 202px;
+            display: grid;
+            place-items: center;
+            position: relative;
+            overflow: hidden;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 16px;
+        }}
+
+        .keyword-cloud-inner {{
+            width: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
             align-content: center;
             flex-wrap: wrap;
-            gap: 10px 16px;
-            padding: 18px;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: #fff;
+            gap: 10px 14px;
             text-align: center;
         }}
 
-        .word {{
-            font-weight: 850;
-            line-height: 1.1;
+        .cloud-word {{
             display: inline-block;
-        }}
-
-        .word.blue {{
-            color: #2563eb;
-        }}
-
-        .word.red {{
-            color: #dc2626;
-        }}
-
-        .reason-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-        }}
-
-        .reason-card {{
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 16px;
-            background: #fff;
-        }}
-
-        .reason-title {{
-            font-weight: 860;
-            margin-bottom: 8px;
-            font-size: 16px;
-        }}
-
-        .reason-text {{
-            color: #334155;
-            line-height: 1.65;
-            font-size: 14px;
-        }}
-
-        .profile-grid {{
-            display: grid;
-            grid-template-columns: 210px 1fr;
-            gap: 20px;
-        }}
-
-        .profile-avatar {{
-            width: 100%;
-            aspect-ratio: 1 / 1.12;
-            border-radius: 8px;
-            border: 1px solid var(--line);
-            background: linear-gradient(145deg, #f1f5f9 0%, #ffffff 52%, #e5e7eb 100%);
-            display: grid;
-            place-items: center;
-            position: relative;
-            overflow: hidden;
-        }}
-
-        .profile-avatar:before {{
-            content: "";
-            position: absolute;
-            width: 84px;
-            height: 84px;
-            top: 45px;
-            border-radius: 999px;
-            background: #cbd5e1;
-        }}
-
-        .profile-avatar:after {{
-            content: "";
-            position: absolute;
-            width: 170px;
-            height: 110px;
-            bottom: 0;
-            border-radius: 50% 50% 0 0;
-            background: #1e3a5f;
-        }}
-
-        .profile-avatar.red:after {{
-            background: #3f1f25;
-        }}
-
-        .profile-initial {{
-            z-index: 2;
-            color: #fff;
-            font-size: 36px;
             font-weight: 900;
-            margin-top: -12px;
+            line-height: 1.05;
+            border-radius: 999px;
+            padding: 3px 5px;
         }}
 
-        .button-link {{
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 9px 12px;
-            color: #334155;
-            text-decoration: none;
-            font-weight: 750;
-            font-size: 13px;
-            background: #fff;
-            margin: 4px 6px 4px 0;
-            cursor: pointer;
-        }}
-
-        .button-link:hover {{
-            border-color: #bfdbfe;
-            color: #1d4ed8;
-            background: #f8fbff;
-        }}
-
-        .button-link.blue {{
-            color: var(--blue-dark);
-            border-color: #bfdbfe;
-            background: #f4f8ff;
-        }}
-
-        .button-link.red {{
-            color: var(--red-dark);
-            border-color: #fecdd3;
-            background: #fff7f7;
-        }}
-
-        .rank-up {{
-            color: #15803d;
-            font-weight: 850;
-        }}
-
-        .rank-down {{
-            color: #dc2626;
-            font-weight: 850;
-        }}
-
-        .rank-same {{
-            color: #64748b;
-            font-weight: 760;
+        .cloud-word.active {{
+            background: #fef3c7;
+            color: #92400e !important;
         }}
 
         .table-note {{
             color: var(--muted);
-            font-size: 13px;
+            font-size: 12px;
+            line-height: 1.55;
             margin-top: 8px;
         }}
 
-        @media (max-width: 960px) {{
-            .top-shell, .ai-box {{
+        .html-table {{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 13px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+        }}
+
+        .html-table th {{
+            background: #f8fafc;
+            color: #475569;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 850;
+            padding: 10px 11px;
+            border-bottom: 1px solid var(--line);
+            white-space: nowrap;
+        }}
+
+        .html-table td {{
+            padding: 10px 11px;
+            border-bottom: 1px solid #edf2f7;
+            vertical-align: top;
+            color: #172033;
+            line-height: 1.45;
+        }}
+
+        .html-table tr:last-child td {{
+            border-bottom: 0;
+        }}
+
+        .html-table tr:hover td {{
+            background: #f8fbff;
+        }}
+
+        .html-table td:nth-child(2),
+        .html-table th:nth-child(2) {{
+            white-space: nowrap;
+        }}
+
+        .num {{
+            text-align: right !important;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }}
+
+        .summary-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }}
+
+        .mini-kpi {{
+            border: 1px solid var(--line);
+            background: #fff;
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: var(--shadow-soft);
+        }}
+
+        .mini-kpi-title {{
+            color: #334155;
+            font-size: 13px;
+            font-weight: 850;
+            margin-bottom: 7px;
+        }}
+
+        .mini-kpi-value {{
+            font-size: 25px;
+            line-height: 1.08;
+            font-weight: 930;
+            font-variant-numeric: tabular-nums;
+        }}
+
+        .stDataFrame {{
+            border-radius: 14px;
+            overflow: hidden;
+        }}
+
+        @media (max-width: 1100px) {{
+            .block-container {{
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }}
+            .app-sidebar {{
+                position: relative;
+                width: auto;
+                height: auto;
+                border-radius: 16px;
+                margin-bottom: 12px;
+            }}
+            .sidebar-brand {{
+                height: auto;
+            }}
+            .sidebar-footer {{
+                position: static;
+                margin-top: 12px;
+            }}
+            .sidebar-menu {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+            .top-header {{
                 grid-template-columns: 1fr;
-                display: grid;
             }}
-            .top-shell {{
-                align-items: start;
+            .top-tabs {{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                max-width: none;
             }}
-            .nav-row {{
-                grid-template-columns: repeat(2, 1fr);
+            .candidate-card {{
+                grid-template-columns: 96px 1fr;
             }}
-            .candidate-home, .profile-grid, .reason-grid, .kpi-grid,
-            .two-col-grid, .keyword-change-grid {{
+            .candidate-photo-wrap {{
+                width: 96px;
+                height: 116px;
+            }}
+            .metric-row, .summary-grid {{
                 grid-template-columns: 1fr;
             }}
-            .brand-wrap {{
-                min-width: 0;
+            .issue-link {{
+                grid-template-columns: 68px 1fr 48px;
             }}
-            .versus-bar {{
-                height: 54px;
+        }}
+
+        @media (max-width: 640px) {{
+            .block-container {{
+                padding-top: 0.6rem;
             }}
-            .versus-segment {{
-                font-size: 19px;
+            .title-wrap h1 {{
+                font-size: 28px;
             }}
-            .vs-bubble {{
-                width: 50px;
-                height: 50px;
-                font-size: 14px;
+            .candidate-card {{
+                grid-template-columns: 1fr;
             }}
-            .word-cloud {{
-                min-height: 210px;
-                padding: 14px;
+            .candidate-photo-wrap {{
+                width: 118px;
+                height: 130px;
+            }}
+            .section-title {{
+                display: block;
+            }}
+            .section-title span {{
+                display: block;
+                margin-top: 4px;
+            }}
+            .html-table {{
+                font-size: 12px;
+            }}
+            .html-table th, .html-table td {{
+                padding: 8px 7px;
             }}
         }}
         </style>
@@ -886,69 +902,106 @@ def image_data_uri(path: Path | str | None) -> str:
     return f"data:image/{mime};base64,{encoded}"
 
 
-def candidate_photo_html(code: str, class_name: str) -> str:
-    uri = image_data_uri(CANDIDATE_IMAGES.get(code))
-    if not uri:
-        name = escape(candidate_name(code))
-        return f'<span class="avatar-initial">{name[:1]}</span>'
-    return f'<img class="{class_name} photo-{escape(code)}" src="{uri}" alt="{escape(candidate_name(code))} 사진" />'
+def page_url(page: str, issue: str | None = None) -> str:
+    url = f"/?page={quote(page)}"
+    if issue:
+        url += f"&issue={quote(issue)}"
+    return url
 
 
-def action_link(label: str, href: str, tone: str = "gray", full_width: bool = False) -> str:
-    width = " width:100%;" if full_width else ""
-    return (
-        f'<a class="button-link {escape(tone)}" href="{escape(href)}" '
-        f'target="_blank" rel="noopener noreferrer" style="{width}">{escape(label)}</a>'
-    )
-
-
-def page_link(label: str, page_key: str, tone: str = "gray", full_width: bool = False) -> str:
-    width = " width:100%;" if full_width else ""
-    return f'<a class="button-link {escape(tone)}" href="/?page={escape(page_key)}" style="{width}">{escape(label)}</a>'
-
-
-def navigate_to(page_key: str) -> None:
-    st.session_state.selected_page = page_key
-    st.query_params["page"] = page_key
-    st.rerun()
-
-
-def nav_button(label: str, key: str, page_key: str = "evidence", width: str = "stretch") -> None:
-    if st.button(label, key=key, type="secondary", width=width):
-        navigate_to(page_key)
-
-
-def render_title_header() -> None:
+def render_sidebar(page: str) -> None:
+    items = [
+        ("대시보드", "home", "▦"),
+        ("비교 분석", "candidate", "♙"),
+        ("출처 탐색", "trend", "⌕"),
+        ("반응·근거", "evidence", "◉"),
+        ("알림 설정", "", "◔"),
+        ("보고서", "", "▤"),
+        ("데이터 안내", "guide", "ⓘ"),
+    ]
+    links = []
+    for label, key, icon in items:
+        if key:
+            active = " active" if page == key else ""
+            links.append(f'<a class="sidebar-item{active}" href="{page_url(key)}"><span>{icon}</span><span>{escape(label)}</span></a>')
+        else:
+            links.append(f'<div class="sidebar-item disabled"><span>{icon}</span><span>{escape(label)}</span></div>')
     st.markdown(
-        """
-        <div class="top-shell">
-            <div class="brand-wrap">
-                <div class="logo-mark" aria-hidden="true">
-                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M7 39H41" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                        <path d="M10 33L20 23L27 29L39 13" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M35 13H40V18" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M10 37V26M20 37V20M30 37V25M40 37V14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                    </svg>
-                </div>
-                <div>
-                    <h1 class="brand-title">서울시장 선거 여론 모니터 - 공개 온라인 반응으로 보는 두 후보 비교와 주요 쟁점 흐름</h1>
-                    <div class="brand-subtitle">데모 데이터 · 실제 지지율·득표율·선거 결과 예측 아님</div>
-                </div>
+        f"""
+        <aside class="app-sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-line">↗</div>
+                <div class="sidebar-title">서울 여론모니터</div>
             </div>
-            <div class="dday-card">서울시장 선거 <b>D-23</b></div>
-        </div>
+            <nav class="sidebar-menu">{"".join(links)}</nav>
+            <div class="sidebar-footer">
+                서울특별시<br/>여론 모니터링 서비스<br/>Ver. 1.0.0
+            </div>
+        </aside>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_nav(selected_page: str, pages: list[tuple[str, str]]) -> None:
-    items = []
-    for key, label in pages:
-        active = " active" if key == selected_page else ""
-        items.append(f'<div class="nav-item{active}">{escape(label)}</div>')
-    st.markdown(f'<div class="nav-shell"><div class="nav-row">{"".join(items)}</div></div>', unsafe_allow_html=True)
+def render_header(page: str) -> None:
+    tabs = [("개요", "home"), ("후보·쟁점", "candidate"), ("추이·출처", "trend"), ("반응·근거", "evidence")]
+    tab_html = "".join(
+        f'<a class="tab-link{" active" if page == key else ""}" href="{page_url(key)}">{label}</a>' for label, key in tabs
+    )
+    st.markdown(
+        f"""
+        <div class="top-header">
+            <div class="title-wrap">
+                <h1>서울시장 선거 여론 모니터</h1>
+                <p>공개 온라인 반응으로 보는 두 후보 비교와 주요 쟁점 흐름</p>
+            </div>
+            <div class="top-note">
+                <div class="note-icon">i</div>
+                <div>{DEMO_WARNING}</div>
+            </div>
+            <div class="election-card">
+                <div class="label">서울시장 선거</div>
+                <div class="dday">D-23</div>
+                <div class="date">2026.06.03 (수)</div>
+            </div>
+        </div>
+        <div class="top-tabs">{tab_html}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_period_controls() -> tuple[str, dict]:
+    if "selected_period" not in st.session_state:
+        st.session_state.selected_period = "7d"
+    period_key = st.session_state.selected_period
+    ctx = period_context(period_key)
+    st.session_state.selected_date_range = (ctx["start"].date(), ctx["end"].date())
+
+    with st.container():
+        cols = st.columns([0.35, 0.38, 0.27], gap="small")
+        with cols[0]:
+            st.markdown('<div class="control-label">분석 기간</div>', unsafe_allow_html=True)
+            st.date_input(
+                "분석 기간",
+                value=st.session_state.selected_date_range,
+                disabled=True,
+                label_visibility="collapsed",
+            )
+        with cols[1]:
+            st.markdown('<div class="control-label">기간 선택</div>', unsafe_allow_html=True)
+            selected = st.radio(
+                "기간 선택",
+                list(PERIOD_OPTIONS.keys()),
+                format_func=lambda key: PERIOD_OPTIONS[key]["label"],
+                horizontal=True,
+                key="selected_period",
+                label_visibility="collapsed",
+            )
+        with cols[2]:
+            st.markdown('<div class="control-label">데이터 기준</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="table-note" style="margin-top:9px;">{ctx["range_text"]}<br/>공개 온라인 반응 기준</div>', unsafe_allow_html=True)
+    return selected, period_context(selected)
 
 
 def section_title(title: str, caption: str | None = None) -> None:
@@ -957,289 +1010,320 @@ def section_title(title: str, caption: str | None = None) -> None:
 
 
 def notice(text: str, tone: str = "blue") -> None:
-    cls = "notice"
-    if tone in {"warning", "gray"}:
-        cls += f" {tone}"
+    cls = "warning-card" if tone == "warning" else "note-card"
     st.markdown(f'<div class="{cls}">{text}</div>', unsafe_allow_html=True)
 
 
 def demo_notice() -> None:
-    notice(
-        "데모 데이터입니다. 공개 온라인 반응 기반 예시이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다.",
-        "warning",
-    )
+    notice(DEMO_WARNING, "warning")
 
 
-def candidate_home_card(row: pd.Series, keywords: Iterable[str], tone: str) -> str:
-    code = str(row["candidate_code"])
-    name = escape(str(row["candidate_name"]))
-    color_class = "blue" if tone == "blue" else "red"
-    score = f"{row['reaction_score']:.1f}"
-    growth = f"+{row['period_growth_rate']:.1f}%" if row["period_growth_rate"] >= 0 else f"{row['period_growth_rate']:.1f}%"
-    comments = format_number(row["comment_count"])
-    chips = "".join(f'<span class="chip {color_class}">{escape(str(keyword))}</span>' for keyword in keywords)
-    photo = candidate_photo_html(code, "candidate-photo")
+def chip_list(items: list[str], tone: str = "blue", limit: int | None = None) -> str:
+    values = items[:limit] if limit else items
+    return '<div class="chip-row">' + "".join(f'<span class="chip {tone}">{escape(str(item))}</span>' for item in values) + "</div>"
+
+
+def candidate_card(row: pd.Series, compact: bool = False) -> str:
+    candidate = str(row["candidate"])
+    tone = "blue" if candidate == "정원오" else "red"
+    image_uri = image_data_uri(get_candidate_image(candidate))
+    image_html = f'<img src="{image_uri}" alt="{escape(candidate)} 사진" />' if image_uri else ""
+    score = f"{float(row['reaction_score']):.1f}"
+    change = format_percent(row["period_change"], signed=True)
+    mentions = format_number(row["mention_count"])
+    keywords = row.get("top_keywords", [])
+    keyword_html = chip_list(list(keywords), tone, 5)
+    if compact:
+        keyword_html = chip_list(list(keywords), tone, 3)
     return f"""
-    <div class="card">
-        <div class="candidate-home">
-            <div class="avatar {color_class}">{photo}</div>
-            <div>
-                <div class="candidate-name-row">
-                    <span class="candidate-name">{name}</span>
-                </div>
-                <div class="metric-label">온라인 반응 점수</div>
-                <div class="metric-value {color_class}-text">{score}</div>
-                <div class="table-note">언급량·댓글·게시물 반응을 0~100으로 바꾼 데모 점수입니다.</div>
-                <div class="metric-grid">
-                    <div class="metric-cell">
-                        <div class="metric-label">최근 증가율</div>
-                        <div class="metric-value {color_class}-text" style="font-size:21px">{growth}</div>
-                    </div>
-                    <div class="metric-cell">
-                        <div class="metric-label">댓글 반응량</div>
-                        <div class="metric-value" style="font-size:21px">{comments}</div>
-                    </div>
-                </div>
-                <div class="metric-label" style="margin-top:14px">대표 연관어 TOP 3</div>
-                <div class="chip-row">{chips}</div>
+    <div class="card hero-card candidate-card {tone}">
+        <div class="candidate-photo-wrap">{image_html}</div>
+        <div>
+            <div class="candidate-name-row">
+                <span class="candidate-name">{escape(candidate)}</span>
+                <span class="party-pill {tone}">{escape(str(row['party']))}</span>
             </div>
+            <div class="metric-row">
+                <div>
+                    <div class="metric-label">반응점수</div>
+                    <div class="metric-value {tone}-text">{score}<span style="font-size:13px; color:#64748b;"> /100</span></div>
+                </div>
+                <div>
+                    <div class="metric-label">기간 변동</div>
+                    <div class="metric-value {tone}-text" style="font-size:17px;">{change}</div>
+                </div>
+                <div>
+                    <div class="metric-label">언급량</div>
+                    <div class="metric-value" style="font-size:17px;">{mentions}<span style="font-size:11px;"> 건</span></div>
+                </div>
+            </div>
+            <div class="metric-label" style="margin-top:10px;">주요 연관 키워드</div>
+            {keyword_html}
         </div>
     </div>
     """
 
 
-def competition_bar(shares: pd.DataFrame) -> None:
-    jwo = shares.loc[shares["candidate_code"].eq("JWO"), "share"].iloc[0]
-    osh = shares.loc[shares["candidate_code"].eq("OSH"), "share"].iloc[0]
-    st.markdown(
-        f"""
-        <div class="card versus-bar-wrap">
-            <div class="versus-title">온라인 반응 나눠 보기</div>
-            <div class="versus-subtitle">선택 기간의 전체 반응량을 두 후보 사이에서 나눈 값입니다.</div>
-            <div class="versus-bar" style="--left:{jwo}%; --right:{osh}%;">
-                <div class="versus-segment left">{jwo:.1f}%</div>
-                <div class="versus-segment right">{osh:.1f}%</div>
-                <div class="vs-bubble">VS</div>
-            </div>
-            <div class="mini-note">
-                실제 여론조사나 지지율이 아닙니다.<br/>
-                공개 게시물에서 관측된 반응량을 이해하기 쉽게 나눈 데모 수치입니다.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def ai_summary(text: str, page_key: str = "evidence") -> None:
-    st.markdown(
-        f"""
-        <div class="ai-box">
-            <div class="ai-icon">AI</div>
-            <div>
-                <div class="ai-title">AI 요약 한 줄</div>
-                <div class="ai-text">{escape(text)}</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    _, button_col = st.columns([0.82, 0.18])
-    with button_col:
-        nav_button("요약 자세히 보기", f"ai_summary_to_{page_key}", page_key)
-
-
-def kpi_card(title: str, value: str, caption: str = "", tone: str = "gray") -> str:
-    value_class = "blue-text" if tone == "blue" else "red-text" if tone == "red" else "green-text" if tone == "green" else ""
-    return (
-        f'<div class="kpi-mini">'
-        f'<div class="kpi-mini-title">{escape(title)}</div>'
-        f'<div class="kpi-mini-value {value_class}">{escape(value)}</div>'
-        f'<div class="metric-label">{escape(caption)}</div>'
-        f"</div>"
-    )
-
-
-def term_glossary_card() -> str:
-    return """
-    <div class="card">
-        <div class="section-title" style="margin-top:0"><h2>용어 쉽게 보기</h2></div>
-        <div class="kpi-mini">
-            <div class="kpi-mini-title blue-text">온라인 반응 점수</div>
-            <div class="reason-text">뉴스·영상·게시글·댓글에서 얼마나 자주 언급되고 반응이 붙었는지를 0~100으로 바꾼 참고 점수입니다. 실제 지지율이 아닙니다.</div>
-        </div>
-        <div class="kpi-mini" style="margin-top:12px;">
-            <div class="kpi-mini-title red-text">온라인 반응 나눠 보기</div>
-            <div class="reason-text">선택 기간에 관측된 전체 반응량을 두 후보 사이에서 단순 비교한 값입니다. 득표율이나 당선 가능성이 아닙니다.</div>
-        </div>
-        <div class="kpi-mini" style="margin-top:12px;">
-            <div class="kpi-mini-title">연관어</div>
-            <div class="reason-text">후보 이름과 함께 자주 등장한 단어입니다. 검색 로그나 개인 관심사 데이터가 아니라 공개 텍스트에서 나온 단어입니다.</div>
-        </div>
-    </div>
-    """
-
-
-def keyword_chips(keywords: Iterable[str], tone: str, limit: int | None = None) -> str:
-    color_class = "blue" if tone == "blue" else "red" if tone == "red" else "gray"
-    values = list(keywords)
-    if limit:
-        values = values[:limit]
-    return '<div class="chip-row">' + "".join(f'<span class="chip {color_class}">{escape(str(item))}</span>' for item in values) + "</div>"
-
-
-def word_cloud(frame: pd.DataFrame, tone: str, max_words: int = 22) -> None:
-    color_class = "blue" if tone == "blue" else "red"
-    data = frame.sort_values("mention_count", ascending=False).head(max_words).copy()
-    if data.empty:
-        st.markdown('<div class="word-cloud">표시할 연관어가 없습니다.</div>', unsafe_allow_html=True)
-        return
-    min_count = data["mention_count"].min()
-    max_count = data["mention_count"].max()
-    words = []
-    for idx, (_, row) in enumerate(data.iterrows()):
-        if max_count == min_count:
-            size = 24
-            opacity = 0.92
-        else:
-            importance = (row["mention_count"] - min_count) / (max_count - min_count)
-            size = 14 + importance * 34
-            opacity = 0.58 + importance * 0.42
-        order = 0 if idx < 3 else idx + 1
-        words.append(
-            f'<span class="word {color_class}" style="font-size:{size:.0f}px; opacity:{opacity:.2f}; order:{order};">'
-            f'{escape(str(row["keyword"]))}</span>'
-        )
-    st.markdown(f'<div class="word-cloud">{"".join(words)}</div>', unsafe_allow_html=True)
-
-
-def rank_change_badge(value: int | float) -> str:
-    number = int(value)
-    if number > 0:
-        return f'<span class="rank-up">▲ {number}</span>'
-    if number < 0:
-        return f'<span class="rank-down">▼ {abs(number)}</span>'
-    return '<span class="rank-same">변동 없음</span>'
-
-
-def issue_compare_rows(frame: pd.DataFrame, limit: int = 6) -> None:
-    rows = []
-    for _, row in frame.head(limit).iterrows():
-        issue = escape(str(row["issue_category"]))
-        jwo = int(row["JWO_share"])
-        osh = int(row["OSH_share"])
-        rows.append(
-            f"""
-            <div class="issue-row">
-                <div>{issue}</div>
-                <div class="blue-text">{jwo}%</div>
-                <div class="issue-track" style="--blueShare:{jwo}%; --redShare:{osh}%;">
-                    <div class="issue-blue"></div><div class="issue-red"></div>
-                </div>
-                <div class="red-text">{osh}%</div>
-            </div>
-            """
-        )
-    st.markdown("".join(rows), unsafe_allow_html=True)
-
-
-def reason_cards(items: list[tuple[str, str, list[str] | None]]) -> None:
-    cards = []
-    for title, text, chips in items:
-        chip_html = keyword_chips(chips or [], "blue") if chips else ""
-        cards.append(
-            f'<div class="reason-card"><div class="reason-title">{escape(title)}</div>'
-            f'<div class="reason-text">{escape(text)}</div>{chip_html}</div>'
-        )
-    st.markdown(f'<div class="reason-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
-
-
-def profile_card(row: pd.Series, tone: str, points: list[tuple[str, str]]) -> None:
-    color_class = "blue" if tone == "blue" else "red"
-    code = str(row["candidate_code"])
-    name = escape(str(row["candidate_name"]))
-    party = escape(str(row["party"]))
-    role = escape(str(row["role"]))
-    career_items = "".join(f"<li>{escape(item.strip())}</li>" for item in str(row["career"]).split("|"))
-    education_items = "".join(f"<li>{escape(item.strip())}</li>" for item in str(row["education"]).split("|"))
-    channels = "".join(action_link(label, url, color_class) for label, url in OFFICIAL_CHANNELS.get(code, []))
-    photo = candidate_photo_html(code, "profile-photo")
-    point_cards = "".join(
-        f"""
-        <div class="kpi-mini">
-            <div class="kpi-mini-title {color_class}-text">{escape(title)}</div>
-            <div class="reason-text">{escape(caption)}</div>
+def issue_insight(issue: str, issue_summary: pd.DataFrame) -> str:
+    row = issue_summary[issue_summary["issue"].eq(issue)]
+    if row.empty:
+        return f"""
+        <div class="card insight-card">
+            <div class="insight-kicker">현재 쟁점: {escape(issue)}</div>
+            <div class="insight-title">선택한 쟁점의 공개 온라인 반응을 확인합니다.</div>
+            <div class="insight-body">{DEMO_WARNING}</div>
         </div>
         """
-        for title, caption in points
-    )
-
-    st.markdown(
-        f"""
-        <div class="card">
-            <div class="profile-grid">
-                <div class="profile-avatar {color_class}">{photo}</div>
-                <div>
-                    <div class="candidate-name-row">
-                        <span class="candidate-name">{name}</span>
-                    </div>
-                    <div class="metric-label" style="font-size:15px">{party}  |  {role}</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:22px 0; border-top:1px solid var(--line); padding-top:16px;">
-                        <div>
-                            <div class="{color_class}-text" style="font-weight:850; margin-bottom:8px;">주요 경력</div>
-                            <ul style="margin:0; padding-left:18px; line-height:1.8;">{career_items}</ul>
-                        </div>
-                        <div>
-                            <div style="font-weight:850; margin-bottom:8px;">학력 요약</div>
-                            <ul style="margin:0; padding-left:18px; line-height:1.8;">{education_items}</ul>
-                        </div>
-                    </div>
-                    <div style="font-weight:850; margin-bottom:8px;">공식 채널</div>
-                    <div>{channels}</div>
-                    <div class="metric-grid" style="margin-top:18px;">
-                        <div class="metric-cell">
-                            <div class="metric-label">온라인 반응 점수</div>
-                            <div class="metric-value {color_class}-text">{row['reaction_score']:.1f}</div>
-                        </div>
-                        <div class="metric-cell">
-                            <div class="metric-label">최근 증가율</div>
-                            <div class="metric-value {color_class}-text">{row['period_growth_rate']:+.1f}%</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div style="margin-top:16px;" class="kpi-grid">{point_cards}</div>
+    data = row.iloc[0]
+    jwo = float(data.get("정원오_share", 0))
+    osh = float(data.get("오세훈_share", 0))
+    if abs(jwo - osh) < 3:
+        title = f"{issue} 쟁점에서 두 후보의 공개 온라인 반응 비중이 유사합니다."
+        stance = "양측 유사"
+    elif jwo > osh:
+        title = f"{issue} 쟁점에서 정원오 후보의 공개 온라인 반응이 앞서고 있습니다."
+        stance = "정원오 우세"
+    else:
+        title = f"{issue} 쟁점에서 오세훈 후보의 공개 온라인 반응이 앞서고 있습니다."
+        stance = "오세훈 우세"
+    return f"""
+    <div class="card insight-card">
+        <div class="insight-kicker">현재 쟁점: {escape(issue)}</div>
+        <div class="insight-title">{escape(title)}</div>
+        <div class="insight-body">
+            이 표현은 공개 온라인 반응량 기준의 비교이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다.
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <div class="chip-row" style="justify-content:center;"><span class="chip blue">정원오 {jwo:.1f}%</span><span class="chip red">오세훈 {osh:.1f}%</span><span class="chip gray">{escape(stance)}</span></div>
+    </div>
+    """
+
+
+def issue_selector(issue_summary: pd.DataFrame, selected_issue: str, page: str = "candidate") -> None:
+    rows = []
+    data = issue_summary.set_index("issue") if not issue_summary.empty else pd.DataFrame()
+    for issue in ISSUE_ORDER:
+        if issue in data.index:
+            jwo = float(data.loc[issue, "정원오_share"])
+            osh = float(data.loc[issue, "오세훈_share"])
+            total = format_number(data.loc[issue, "total"])
+        else:
+            jwo, osh, total = 50.0, 50.0, "0"
+        active = " active" if issue == selected_issue else ""
+        rows.append(
+            f'<a class="issue-link{active}" href="{page_url(page, issue)}">'
+            f'<div class="issue-name">{escape(issue)}</div>'
+            f'<div class="share-track" style="--jwo:{jwo}%; --osh:{osh}%;">'
+            f'<div class="share-blue"></div><div class="share-red"></div></div>'
+            f'<div class="issue-percent">{jwo:.0f}/{osh:.0f}</div></a>'
+            f'<div class="table-note" style="margin:-5px 4px 2px;">반응량 {total}건 · 공개 온라인 반응 비중</div>'
+        )
+    st.markdown(f'<div class="issue-list">{"".join(rows)}</div>', unsafe_allow_html=True)
+
+
+def keyword_cloud(keywords: pd.DataFrame, candidate: str, issue: str) -> str:
+    tone = "blue" if candidate == "정원오" else "red"
+    data = keywords[keywords["candidate"].eq(candidate)].copy()
+    if data.empty:
+        return '<div class="keyword-cloud"><div class="table-note">표시할 연관 키워드가 없습니다.</div></div>'
+    max_count = max(1, data["mention_count"].max())
+    words = []
+    for idx, (_, row) in enumerate(data.sort_values("mention_count", ascending=False).head(12).iterrows()):
+        importance = float(row["mention_count"]) / max_count
+        size = 13 + importance * 20
+        opacity = 0.62 + importance * 0.38
+        active = " active" if row["issue"] == issue else ""
+        order = 0 if idx < 2 else idx + 1
+        words.append(
+            f'<span class="cloud-word {tone}-text{active}" style="font-size:{size:.0f}px; opacity:{opacity:.2f}; order:{order};">{escape(str(row["keyword"]))}</span>'
+        )
+    return f'<div class="keyword-cloud"><div class="keyword-cloud-inner">{"".join(words)}</div></div>'
+
+
+def filter_row(prefix: str, issue: str | None = None) -> tuple[str, str]:
+    source_key = f"selected_source_for_{prefix}"
+    metric_key = f"selected_metric_for_{prefix}"
+    if source_key not in st.session_state:
+        st.session_state[source_key] = "전체"
+    if metric_key not in st.session_state:
+        st.session_state[metric_key] = "반응량"
+    cols = st.columns([0.42, 0.42, 0.16], gap="small")
+    with cols[0]:
+        st.markdown('<div class="control-label">출처 필터</div>', unsafe_allow_html=True)
+        source = st.radio(
+            "출처 필터",
+            list(SOURCE_OPTIONS.keys()),
+            format_func=lambda key: SOURCE_OPTIONS[key],
+            horizontal=True,
+            key=source_key,
+            label_visibility="collapsed",
+        )
+    with cols[1]:
+        st.markdown('<div class="control-label">지표 선택</div>', unsafe_allow_html=True)
+        metric = st.radio("지표 선택", METRIC_OPTIONS, horizontal=True, key=metric_key, label_visibility="collapsed")
+    with cols[2]:
+        st.markdown('<div class="control-label">현재 선택</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="table-note" style="margin-top:8px;">{escape(issue or "전체 쟁점")} 기준<br/>아래 카드·표가 함께 갱신됩니다.</div>',
+            unsafe_allow_html=True,
+        )
+    return source, metric
 
 
 def styled_plotly(fig: go.Figure, height: int = 330) -> go.Figure:
     fig.update_layout(
         height=height,
-        margin=dict(l=20, r=20, t=28, b=20),
-        font=dict(family=FONT_STACK, size=13, color="#1f2937"),
+        margin=dict(l=20, r=20, t=38, b=28),
+        font=dict(family=FONT_STACK, size=12, color="#334155"),
         paper_bgcolor="rgba(255,255,255,0)",
         plot_bgcolor="rgba(255,255,255,0)",
+        hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     )
-    fig.update_xaxes(showgrid=False, linecolor="#e5e7eb", tickfont=dict(color="#475569"))
-    fig.update_yaxes(gridcolor="#edf2f7", zerolinecolor="#e5e7eb", tickfont=dict(color="#475569"))
+    fig.update_xaxes(showgrid=False, linecolor="#e2e8f0", tickfont=dict(color="#475569"))
+    fig.update_yaxes(gridcolor="#edf2f7", zerolinecolor="#e2e8f0", tickfont=dict(color="#475569"))
     return fig
 
 
-def dataframe_clean(frame: pd.DataFrame) -> pd.DataFrame:
-    display = frame.copy()
-    for column in display.columns:
-        if pd.api.types.is_datetime64_any_dtype(display[column]):
-            display[column] = display[column].dt.strftime("%Y.%m.%d")
-    return display
+def metric_card(title: str, value: str, caption: str = "", tone: str = "") -> str:
+    tone_class = f"{tone}-text" if tone else ""
+    return (
+        '<div class="mini-kpi">'
+        f'<div class="mini-kpi-title">{escape(title)}</div>'
+        f'<div class="mini-kpi-value {tone_class}">{escape(value)}</div>'
+        f'<div class="table-note">{escape(caption)}</div>'
+        '</div>'
+    )
 
 
-def candidate_color(code: str) -> str:
-    return CANDIDATE_COLORS.get(code, "#64748b")
+def render_change_table(frame: pd.DataFrame, limit: int = 7) -> None:
+    display = frame.tail(limit).copy()
+    rows = []
+    for _, row in display.iterrows():
+        rows.append(
+            f'<tr><td>{short_date_text(row["날짜"])}</td>'
+            f'<td class="num blue-text">{format_number(row["정원오 반응량"])}</td>'
+            f'<td class="num red-text">{format_number(row["오세훈 반응량"])}</td>'
+            f'<td class="num green-text">{row["우호 표현 비중"]:.1f}%</td>'
+            f'<td class="num muted-text">{row["중립 표현 비중"]:.1f}%</td>'
+            f'<td class="num red-text">{row["비판 표현 비중"]:.1f}%</td>'
+            f'<td>{escape(str(row["주요 연관 키워드"]))}</td></tr>'
+        )
+    html = (
+        '<table class="html-table"><thead><tr>'
+        '<th>날짜</th><th class="num">정원오 반응량</th><th class="num">오세훈 반응량</th>'
+        '<th class="num">우호 표현</th><th class="num">중립 표현</th><th class="num">비판 표현</th>'
+        '<th>주요 연관 키워드</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
-def candidate_name(code: str) -> str:
-    return CANDIDATE_NAMES.get(code, code)
+def reaction_badge(reaction_type: str) -> str:
+    tone = {"우호": "green", "중립": "gray", "비판": "orange"}.get(reaction_type, "gray")
+    return f'<span class="badge {tone}">{escape(reaction_type)}</span>'
+
+
+def source_badge(source_label: str) -> str:
+    return f'<span class="badge blue">{escape(source_label)}</span>'
+
+
+def render_evidence_table(frame: pd.DataFrame, limit: int = 8, include_issue: bool = True) -> None:
+    display = frame.head(limit).copy()
+    if display.empty:
+        notice("선택한 조건에 해당하는 데모 근거 샘플이 없습니다. 필터를 넓혀 다시 확인해 주세요.", "warning")
+        return
+    rows = []
+    for _, row in display.iterrows():
+        issue_cell = f"<td>{escape(str(row['issue']))}</td>" if include_issue else ""
+        rows.append(
+            f'<tr><td>{source_badge(str(row["source_label"]))}</td>'
+            f'<td>{escape(str(row["candidate"]))}</td>'
+            f'<td>{reaction_badge(str(row["reaction_type"]))}</td>'
+            f'{issue_cell}'
+            f'<td><b>{escape(str(row["title"]))}</b><br/><span class="muted-text">{escape(str(row["summary"]))}</span></td>'
+            f'<td class="num">{format_number(row["count"])}</td>'
+            f'<td>{pd.to_datetime(row["datetime"]).strftime("%Y.%m.%d %H:%M")}</td></tr>'
+        )
+    issue_header = "<th>쟁점</th>" if include_issue else ""
+    html = (
+        '<table class="html-table"><thead><tr>'
+        f'<th>출처</th><th>후보</th><th>반응 유형</th>{issue_header}'
+        '<th>제목/내용 요약</th><th class="num">반응량</th><th>시간</th>'
+        f'</tr></thead><tbody>{"".join(rows)}</tbody></table>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def demo_link_notice_button(key: str = "demo_link_notice") -> None:
+    if st.button("관련 원문 보기 안내", key=key, width="stretch"):
+        st.toast("이 항목은 데모 데이터입니다. 실제 원문 링크는 제공하지 않습니다.")
+        st.info("이 항목은 데모 데이터입니다. 실제 원문 링크는 제공하지 않습니다.")
+
+
+def official_channel_buttons(channels: pd.DataFrame, candidate: str) -> None:
+    data = channels[channels["candidate"].eq(candidate)]
+    cols = st.columns(max(1, len(data)), gap="small")
+    for col, (_, row) in zip(cols, data.iterrows()):
+        with col:
+            st.link_button(str(row["channel"]), str(row["url"]), width="stretch")
+
+
+def rank_badge(value: int | float) -> str:
+    number = int(value)
+    if number > 0:
+        return f'<span class="green-text" style="font-weight:850;">▲ {number}</span>'
+    if number < 0:
+        return f'<span class="red-text" style="font-weight:850;">▼ {abs(number)}</span>'
+    return '<span class="muted-text" style="font-weight:760;">-</span>'
+
+
+def render_keyword_rank_table(keywords: pd.DataFrame, candidate: str, limit: int = 7) -> None:
+    data = keywords[keywords["candidate"].eq(candidate)].head(limit)
+    rows = []
+    for _, row in data.iterrows():
+        rows.append(
+            f'<tr><td>{int(row["rank"])}</td>'
+            f'<td><b>{escape(str(row["keyword"]))}</b></td>'
+            f'<td>{escape(str(row["issue"]))}</td>'
+            f'<td class="num">{format_number(row["mention_count"])}</td>'
+            f'<td class="num">{rank_badge(row["rank_change"])}</td></tr>'
+        )
+    html = (
+        '<table class="html-table">'
+        '<thead><tr><th>순위</th><th>연관 키워드</th><th>쟁점</th><th class="num">언급량</th><th class="num">변동</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def selected_issue_from_query(default: str = "교통") -> str:
+    issue = st.query_params.get("issue") or st.session_state.get("selected_issue", default)
+    if issue not in ISSUE_ORDER:
+        issue = default
+    st.session_state.selected_issue = issue
+    return issue
+
+
+def source_code(label_or_code: str) -> str:
+    if label_or_code == "전체":
+        return "전체"
+    return label_or_code
+
+
+def selected_evidence_filters() -> tuple[str, str, str]:
+    if "selected_candidate_for_table" not in st.session_state:
+        st.session_state.selected_candidate_for_table = "전체"
+    if "selected_reaction_type_for_evidence" not in st.session_state:
+        st.session_state.selected_reaction_type_for_evidence = "전체"
+    if "selected_sort_for_evidence" not in st.session_state:
+        st.session_state.selected_sort_for_evidence = "최신순"
+    cols = st.columns([0.28, 0.28, 0.28, 0.16], gap="small")
+    with cols[0]:
+        candidate = st.selectbox("후보", ["전체", *CANDIDATE_ORDER], key="selected_candidate_for_table")
+    with cols[1]:
+        reaction_type = st.selectbox("반응 유형", REACTION_TYPES, key="selected_reaction_type_for_evidence")
+    with cols[2]:
+        sort = st.selectbox("정렬", ["최신순", "반응 많은 순"], key="selected_sort_for_evidence")
+    with cols[3]:
+        st.markdown('<div class="table-note" style="margin-top:28px;">근거 샘플 표만 갱신</div>', unsafe_allow_html=True)
+    return candidate, reaction_type, sort

@@ -6,97 +6,177 @@ import streamlit as st
 import components as ui
 from data_loader import (
     CANDIDATE_COLORS,
-    candidate_summary,
+    CANDIDATE_ORDER,
+    DEMO_WARNING,
+    SOURCE_LABELS,
+    SOURCE_OPTIONS,
     format_number,
-    keyword_summary,
-    narrative,
+    get_reaction_timeseries,
+    get_source_summary,
+    get_source_timeseries,
 )
 
 
-def _trend_chart(frames: dict) -> None:
+def _trend_filters() -> tuple[str, str, str]:
+    st.session_state.setdefault("selected_candidate_for_trend", "전체")
+    st.session_state.setdefault("selected_source_for_trend_chart", "전체")
+    st.session_state.setdefault("selected_metric_for_trend_chart", "반응량")
+    cols = st.columns([0.32, 0.38, 0.30], gap="small")
+    with cols[0]:
+        st.markdown('<div class="control-label">후보 보기</div>', unsafe_allow_html=True)
+        candidate = st.radio(
+            "후보 보기",
+            ["전체", *CANDIDATE_ORDER],
+            horizontal=True,
+            key="selected_candidate_for_trend",
+            label_visibility="collapsed",
+        )
+    with cols[1]:
+        st.markdown('<div class="control-label">출처</div>', unsafe_allow_html=True)
+        source = st.radio(
+            "출처",
+            list(SOURCE_OPTIONS.keys()),
+            format_func=lambda key: SOURCE_OPTIONS[key],
+            horizontal=True,
+            key="selected_source_for_trend_chart",
+            label_visibility="collapsed",
+        )
+    with cols[2]:
+        st.markdown('<div class="control-label">지표</div>', unsafe_allow_html=True)
+        metric = st.radio(
+            "지표",
+            ["반응량", "반응점수", "후보 간 격차"],
+            horizontal=True,
+            key="selected_metric_for_trend_chart",
+            label_visibility="collapsed",
+        )
+    return candidate, source, metric
+
+
+def _overall_chart(period_key: str, candidate: str, source: str, metric: str) -> None:
+    trend = get_reaction_timeseries(period_key, candidate, source, metric)
     fig = go.Figure()
-    for code, label in [("JWO", "정원오"), ("OSH", "오세훈")]:
-        daily = frames["daily"][frames["daily"]["candidate_code"].eq(code)]
+    if metric == "후보 간 격차":
+        pivot = trend.pivot_table(index="date", columns="candidate", values="reaction_count", fill_value=0)
+        gap = (pivot.get("정원오", 0) - pivot.get("오세훈", 0)).abs().reset_index(name="gap")
         fig.add_trace(
             go.Scatter(
-                x=daily["metric_date"],
-                y=daily["total_reactions"],
+                x=gap["date"],
+                y=gap["gap"],
+                mode="lines+markers",
+                name="후보 간 격차",
+                line=dict(color="#334155", width=3, dash="dot"),
+                marker=dict(size=8),
+                hovertemplate="%{x|%Y.%m.%d}<br>격차: %{y:,}건<extra></extra>",
+            )
+        )
+    else:
+        for candidate_name in CANDIDATE_ORDER:
+            data = trend[trend["candidate"].eq(candidate_name)]
+            if data.empty:
+                continue
+            y_col = "metric_value"
+            fig.add_trace(
+                go.Scatter(
+                    x=data["date"],
+                    y=data[y_col],
+                    mode="lines+markers",
+                    name=candidate_name,
+                    line=dict(color=CANDIDATE_COLORS[candidate_name], width=3),
+                    marker=dict(size=7),
+                    customdata=data[["daily_change"]],
+                    hovertemplate="%{x|%Y.%m.%d}<br>%{fullData.name}: %{y:,.1f}<br>전일 대비 %{customdata[0]:+.1f}%<extra></extra>",
+                )
+            )
+    fig.update_yaxes(tickformat=",")
+    st.plotly_chart(ui.styled_plotly(fig, height=380), width="stretch")
+
+
+def _source_comparison(period_key: str, source: str) -> None:
+    summary = get_source_summary(period_key, source=source)
+    if summary.empty:
+        ui.notice("선택한 출처 조건의 데이터가 없습니다.", "warning")
+        return
+    fig = go.Figure()
+    for metric, color in [("content_count", "#2563eb"), ("comment_count", "#ef3340")]:
+        grouped = summary.groupby("source_label", as_index=False)[metric].sum()
+        fig.add_trace(
+            go.Bar(
+                x=grouped["source_label"],
+                y=grouped[metric],
+                name="게시물 수" if metric == "content_count" else "댓글 수",
+                marker_color=color,
+                text=grouped[metric].map(lambda value: f"{value:,}"),
+                textposition="outside",
+            )
+        )
+    fig.update_layout(barmode="group")
+    fig.update_yaxes(tickformat=",")
+    st.plotly_chart(ui.styled_plotly(fig, height=300), width="stretch")
+
+
+def _source_table(period_key: str, source: str) -> None:
+    summary = get_source_summary(period_key, source=source)
+    rows = []
+    for _, row in summary.sort_values(["source_label", "candidate"]).iterrows():
+        tone = "blue" if row["candidate"] == "정원오" else "red"
+        rows.append(
+            f'<tr><td>{row["source_label"]}</td>'
+            f'<td><span class="badge {tone}">{row["candidate"]}</span></td>'
+            f'<td class="num">{format_number(row["content_count"])}</td>'
+            f'<td class="num">{format_number(row["comment_count"])}</td>'
+            f'<td class="num">{format_number(row["reaction_count"])}</td></tr>'
+        )
+    html = (
+        '<table class="html-table">'
+        '<thead><tr><th>출처</th><th>후보</th><th class="num">게시물 수</th><th class="num">댓글 수</th><th class="num">반응량</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def _source_timeseries(period_key: str, source: str) -> None:
+    data = get_source_timeseries(period_key, source=source)
+    grouped = data.groupby(["date", "source_label"], as_index=False)["reaction_count"].sum()
+    fig = go.Figure()
+    palette = {"뉴스": "#2563eb", "영상·게시글": "#ef3340", "댓글": "#22c55e", "커뮤니티/X": "#f97316"}
+    for label, frame in grouped.groupby("source_label"):
+        fig.add_trace(
+            go.Scatter(
+                x=frame["date"],
+                y=frame["reaction_count"],
                 mode="lines+markers",
                 name=label,
-                line=dict(color=CANDIDATE_COLORS[code], width=3),
-                marker=dict(size=8),
+                line=dict(color=palette.get(label, "#64748b"), width=3),
+                marker=dict(size=6),
+                hovertemplate="%{x|%Y.%m.%d}<br>%{fullData.name}: %{y:,}건<extra></extra>",
             )
         )
     fig.update_yaxes(tickformat=",")
-    st.plotly_chart(ui.styled_plotly(fig, height=360), width="stretch")
+    st.plotly_chart(ui.styled_plotly(fig, height=320), width="stretch")
 
 
-def _surge_card(frames: dict) -> None:
-    daily = frames["daily"].sort_values("growth_rate", ascending=False).iloc[0]
-    code = daily["candidate_code"]
-    color = "blue" if code == "JWO" else "red"
-    keywords = keyword_summary(frames, top_n=5)
-    top_keywords = keywords[keywords["candidate_code"].eq(code)]["keyword"].head(4).tolist()
-    st.markdown(
-        f"""
-        <div class="card">
-            <div class="section-title" style="margin-top:0"><h2>반응 급등일</h2></div>
-            <div style="font-size:30px; font-weight:900;" class="{color}-text">{daily['metric_date'].strftime('%m.%d')}</div>
-            <div class="metric-grid">
-                <div class="metric-cell"><div class="metric-label">{ui.candidate_name(code)}</div><div class="metric-value {color}-text">{daily['growth_rate']:+.1f}%</div></div>
-                <div class="metric-cell"><div class="metric-label">총 반응량</div><div class="metric-value">{format_number(daily['total_reactions'])}</div></div>
-            </div>
-            <div class="metric-label" style="margin-top:16px">의심 원인 키워드</div>
-            {ui.keyword_chips(top_keywords, color)}
-            <div class="table-note">평소 기간 평균 대비 반응 증가율을 기준으로 탐지했습니다.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+def render(data: dict, period_key: str, context: dict) -> None:
+    ui.section_title("추이·출처", "전체 공개 온라인 반응 흐름과 출처별 변화")
+    ui.notice(DEMO_WARNING, "warning")
 
+    candidate, source, metric = _trend_filters()
+    source_label = SOURCE_LABELS.get(source, "전체")
 
-def render(data: dict, frames: dict, context: dict) -> None:
-    ui.section_title("온라인 반응 추이", "최근 기간 동안 후보별 반응량이 어떻게 움직였는지 보여줍니다.")
-    ui.notice(
-        f"선택 기간: {context['title']} ({context['range_text']})<br/>기간 선택을 변경하면 해당 기간의 온라인 반응 데이터를 기준으로 모든 지표와 차트가 재계산됩니다."
-    )
+    left, right = st.columns([1.35, 0.85], gap="large")
+    with left:
+        ui.section_title("전체 공개 온라인 반응 흐름", f"{context['title']} · {source_label}")
+        _overall_chart(period_key, candidate, source, metric)
+    with right:
+        ui.section_title("출처별 게시물·댓글 수", "출처 필터 기준")
+        _source_comparison(period_key, source)
 
-    col1, col2 = st.columns([1.45, 0.85], gap="large")
-    with col1:
-        ui.section_title(f"{context['title']} 반응 추이")
-        _trend_chart(frames)
-        summary = candidate_summary(frames).set_index("candidate_code")
-        st.markdown(
-            f"""
-            <div class="metric-grid">
-                <div class="metric-cell"><div class="metric-label">정원오 총 반응</div><div class="metric-value blue-text">{format_number(summary.loc['JWO','total_reactions'])}</div></div>
-                <div class="metric-cell"><div class="metric-label">오세훈 총 반응</div><div class="metric-value red-text">{format_number(summary.loc['OSH','total_reactions'])}</div></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with col2:
-        _surge_card(frames)
-
-    story = narrative(frames, context["period_key"])
-    bottom_left, bottom_right = st.columns([1.35, 0.85], gap="large")
+    bottom_left, bottom_right = st.columns([0.95, 1.05], gap="large")
     with bottom_left:
-        ui.section_title("왜 이렇게 나왔나요?")
-        ui.reason_cards(
-            [
-                ("교통 이슈 집중 확산", "교통 관련 공약 발표와 보도 증가로 양 후보 모두 관련 반응이 증가했습니다.", ["교통대책", "지하철 연장", "버스노선"]),
-                ("영상·게시글 확산 주도", "유튜브, 커뮤니티, SNS에서 짧은 해설형 게시물이 반응을 빠르게 만들었습니다.", ["영상 확산", "커뮤니티", "SNS"]),
-                ("댓글 참여 증가", "핵심 쟁점에 대한 공감 및 비판 댓글이 늘며 댓글 수와 공유 수가 함께 증가했습니다.", ["의견 대립", "공감", "참여 확대"]),
-            ]
-        )
+        ui.section_title("출처별 상세표", "빈 셀 없이 숫자로 표시")
+        _source_table(period_key, source)
     with bottom_right:
-        st.markdown(
-            f"""
-            <div class="card">
-                <div class="section-title" style="margin-top:0"><h2>요약 한 줄</h2></div>
-                <div class="ai-text">{story['headline_text']} {story['competition_text']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        ui.nav_button("근거 샘플 및 상세 데이터 보기", "trend_summary_to_evidence")
+        ui.section_title("출처별 시계열 비교", "전체 기간 변화")
+        _source_timeseries(period_key, source)
+
+    st.caption("출처별 수치는 공개 온라인 반응 기준이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다.")

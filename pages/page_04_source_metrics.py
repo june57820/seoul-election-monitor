@@ -1,185 +1,163 @@
 from __future__ import annotations
 
-from textwrap import dedent
-
 import plotly.graph_objects as go
 import streamlit as st
 
 import components as ui
 from data_loader import (
     CANDIDATE_COLORS,
-    SOURCE_DETAIL_LABELS,
+    CANDIDATE_ORDER,
+    DEMO_WARNING,
+    ISSUE_ORDER,
     SOURCE_LABELS,
+    SOURCE_OPTIONS,
     format_number,
-    source_detail_summary,
-    source_summary,
-    source_totals,
+    get_collection_status,
+    get_evidence_samples,
+    get_issue_detail_timeseries,
+    short_date_text,
 )
 
 
-def _source_cards(frames: dict) -> None:
-    source = source_summary(frames)
-    cards = []
-    for source_key, label in SOURCE_LABELS.items():
-        data = source[source["source"].eq(source_key)].set_index("candidate_code")
-        if source_key == "comment":
-            metric_html = f"""
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
-                <div style="background:#f4f8ff; border:1px solid #bfdbfe; border-radius:8px; padding:14px;">
-                    <div class="badge blue">정원오</div>
-                    <div class="metric-label" style="margin-top:10px;">댓글 수</div>
-                    <div class="metric-value blue-text">{format_number(data.loc['JWO','comment_count'])}</div>
-                </div>
-                <div style="background:#fff7f7; border:1px solid #fecdd3; border-radius:8px; padding:14px;">
-                    <div class="badge red">오세훈</div>
-                    <div class="metric-label" style="margin-top:10px;">댓글 수</div>
-                    <div class="metric-value red-text">{format_number(data.loc['OSH','comment_count'])}</div>
-                </div>
-            </div>
-            """
-        else:
-            metric_html = f"""
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
-                <div style="background:#f4f8ff; border:1px solid #bfdbfe; border-radius:8px; padding:14px;">
-                    <div class="badge blue">정원오</div>
-                    <div class="metric-label" style="margin-top:10px;">게시물 수</div>
-                    <div class="metric-value blue-text">{format_number(data.loc['JWO','content_count'])}</div>
-                    <div class="metric-label">댓글 수</div>
-                    <b>{format_number(data.loc['JWO','comment_count'])}</b>
-                </div>
-                <div style="background:#fff7f7; border:1px solid #fecdd3; border-radius:8px; padding:14px;">
-                    <div class="badge red">오세훈</div>
-                    <div class="metric-label" style="margin-top:10px;">게시물 수</div>
-                    <div class="metric-value red-text">{format_number(data.loc['OSH','content_count'])}</div>
-                    <div class="metric-label">댓글 수</div>
-                    <b>{format_number(data.loc['OSH','comment_count'])}</b>
-                </div>
-            </div>
-            """
-        cards.append(
-            dedent(
-                f"""
-                <div class="card">
-                    <div class="section-title" style="margin-top:0"><h2>{label}</h2></div>
-                    {metric_html}
-                    <div class="table-note">반응량: {format_number(data['reaction_count'].sum())}건</div>
-                </div>
-                """
-            ).strip()
+def _context_filters() -> tuple[str, str]:
+    st.session_state.setdefault("selected_issue", "교통")
+    st.session_state.setdefault("selected_source_for_reaction_page", "전체")
+    cols = st.columns([0.34, 0.44, 0.22], gap="small")
+    with cols[0]:
+        issue = st.selectbox("쟁점", ISSUE_ORDER, key="selected_issue")
+    with cols[1]:
+        source = st.radio(
+            "출처",
+            list(SOURCE_OPTIONS.keys()),
+            format_func=lambda key: SOURCE_OPTIONS[key],
+            horizontal=True,
+            key="selected_source_for_reaction_page",
         )
-    compact_cards = "".join(card.replace("\n", "") for card in cards)
-    st.markdown(f'<div class="kpi-grid">{compact_cards}</div>', unsafe_allow_html=True)
+    with cols[2]:
+        st.markdown(
+            '<div class="table-note" style="margin-top:31px;">반응 분위기와 근거 샘플이 함께 갱신됩니다.</div>',
+            unsafe_allow_html=True,
+        )
+    return issue, source
 
 
-def _detail_options(frames: dict) -> dict[str, str | None]:
-    available = source_detail_summary(frames)["source_detail"].drop_duplicates().tolist()
-    options: dict[str, str | None] = {"전체": None}
-    for key, label in SOURCE_DETAIL_LABELS.items():
-        if key in available:
-            options[label] = key
-    return options
-
-
-def _filtered_detail(frames: dict, detail_key: str | None):
-    detail = source_detail_summary(frames)
-    if detail_key:
-        detail = detail[detail["source_detail"].eq(detail_key)].copy()
-    return detail
-
-
-def _grouped_bar(frames: dict, detail_key: str | None) -> None:
-    detail = _filtered_detail(frames, detail_key)
+def _mood_bar(period_key: str, issue: str, source: str) -> None:
+    detail = get_issue_detail_timeseries(period_key, issue, source, "반응량")
+    grouped = (
+        detail.groupby("candidate", as_index=False)
+        .agg(
+            favorable_count=("favorable_count", "sum"),
+            neutral_count=("neutral_count", "sum"),
+            critical_count=("critical_count", "sum"),
+            reaction_count=("reaction_count", "sum"),
+        )
+    )
     fig = go.Figure()
-    if detail_key:
-        detail = detail.assign(candidate_label=detail["candidate_code"].map({"JWO": "정원오", "OSH": "오세훈"}))
+    mapping = [
+        ("우호 표현", "favorable_count", "#22c55e"),
+        ("중립 표현", "neutral_count", "#94a3b8"),
+        ("비판 표현", "critical_count", "#ef3340"),
+    ]
+    for label, column, color in mapping:
         fig.add_trace(
             go.Bar(
-                x=detail["candidate_label"],
-                y=detail["reaction_count"],
-                marker_color=detail["candidate_code"].map(CANDIDATE_COLORS),
-                text=detail["reaction_count"].map(lambda value: f"{value:,}"),
-                textposition="outside",
+                y=grouped["candidate"],
+                x=grouped[column],
+                name=label,
+                orientation="h",
+                marker_color=color,
+                hovertemplate="%{y}<br>" + label + ": %{x:,}건<extra></extra>",
             )
         )
-        fig.update_layout(showlegend=False)
+    fig.update_layout(barmode="stack")
+    fig.update_xaxes(tickformat=",")
+    st.plotly_chart(ui.styled_plotly(fig, height=260), width="stretch")
+
+
+def _mood_cards(period_key: str, issue: str, source: str) -> None:
+    detail = get_issue_detail_timeseries(period_key, issue, source, "반응량")
+    cards = []
+    for candidate in CANDIDATE_ORDER:
+        data = detail[detail["candidate"].eq(candidate)]
+        total = max(1, int(data[["favorable_count", "neutral_count", "critical_count"]].sum().sum()))
+        favorable = data["favorable_count"].sum() / total * 100
+        neutral = data["neutral_count"].sum() / total * 100
+        critical = data["critical_count"].sum() / total * 100
+        tone = "blue" if candidate == "정원오" else "red"
+        cards.append(
+            ui.metric_card(
+                candidate,
+                f"{favorable:.1f}%",
+                f"우호 표현 · 중립 {neutral:.1f}% · 비판 {critical:.1f}%",
+                tone,
+            )
+        )
+    st.markdown(f'<div class="summary-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def _data_method_card(period_key: str, context: dict) -> None:
+    status = get_collection_status(period_key)
+    st.markdown(
+        f"""
+        <div class="card">
+            <div class="section-title" style="margin-top:0"><h2>데이터 안내</h2></div>
+            <ul style="margin:0; padding-left:18px; line-height:1.8;">
+                <li>수집 기간: {context['range_text']}</li>
+                <li>마지막 업데이트: {status['updated_at']}</li>
+                <li>수집 출처: {status['source_scope']}</li>
+                <li>수집 규모: {format_number(status['total_items'])}건</li>
+            </ul>
+            <div class="note-card" style="margin-top:14px;">
+                반응 분위기 분석은 공개 텍스트를 우호 표현, 중립 표현, 비판 표현으로 분류한 데모 결과입니다.
+                실제 여론조사나 선거 결과 예측이 아닙니다.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _evidence_context_label(period_key: str, issue: str, source: str) -> None:
+    detail = get_issue_detail_timeseries(period_key, issue, source, "반응량")
+    if detail.empty:
+        label = f"현재 근거 샘플: {issue} 쟁점"
     else:
-        for code, label in [("JWO", "정원오"), ("OSH", "오세훈")]:
-            data = detail[detail["candidate_code"].eq(code)]
-            fig.add_trace(
-                go.Bar(
-                    x=data["source_detail_label"],
-                    y=data["reaction_count"],
-                    name=label,
-                    marker_color=CANDIDATE_COLORS[code],
-                    text=data["reaction_count"].map(lambda value: f"{value:,}"),
-                    textposition="outside",
-                )
-            )
-        fig.update_layout(barmode="group")
-    fig.update_yaxes(tickformat=",")
-    st.plotly_chart(ui.styled_plotly(fig, height=380), width="stretch")
+        date = detail.sort_values("reaction_count", ascending=False).iloc[0]["date"]
+        label = f"현재 근거 샘플: {issue} 쟁점 · {short_date_text(date)} 반응 집중일 기준"
+    st.markdown(f'<div class="note-card">{label}<br/>{DEMO_WARNING}</div>', unsafe_allow_html=True)
 
 
-def _donut(frames: dict) -> None:
-    totals = source_totals(frames)
-    fig = go.Figure(
-        go.Pie(
-            labels=totals["source_label"],
-            values=totals["reaction_count"],
-            hole=0.58,
-            marker=dict(colors=["#2563eb", "#ef3340", "#22c55e"]),
-            textinfo="label+percent",
-        )
-    )
-    fig.update_layout(showlegend=False)
-    st.plotly_chart(ui.styled_plotly(fig, height=330), width="stretch")
+def render(data: dict, period_key: str, context: dict) -> None:
+    ui.section_title("반응·근거", "반응 분위기 분석과 mock 근거 샘플")
+    ui.demo_notice()
 
+    issue, source = _context_filters()
+    _evidence_context_label(period_key, issue, source)
 
-def _detail_table(frames: dict, detail_key: str | None) -> None:
-    detail = _filtered_detail(frames, detail_key).copy()
-    detail["출처"] = detail["source_detail_label"]
-    detail["구분"] = detail["source_label"]
-    detail["후보"] = detail["candidate_code"].map({"JWO": "정원오", "OSH": "오세훈"})
-    detail["게시물 수"] = detail.apply(
-        lambda row: "해당 없음" if row["source"] == "comment" else format_number(row["content_count"]),
-        axis=1,
-    )
-    detail["댓글 수"] = detail["comment_count"].map(format_number)
-    detail["반응량"] = detail["reaction_count"].map(format_number)
-    st.dataframe(detail[["출처", "구분", "후보", "게시물 수", "댓글 수", "반응량"]], width="stretch", hide_index=True)
-
-
-def render(data: dict, frames: dict, context: dict) -> None:
-    ui.section_title("출처별 핵심지표", f"{context['title']} 기준")
-    ui.notice(
-        "뉴스, 영상·게시글, 댓글을 네이버뉴스·다음뉴스·유튜브처럼 더 구체적인 공개 출처 단위로 나누어 게시물 수, 댓글 수, 반응량을 비교합니다. 실제 지지율이 아닌 공개 온라인 반응 기반 예시입니다.",
-        "gray",
-    )
-
-    _source_cards(frames)
-
-    options = _detail_options(frames)
-    selected_label = st.radio("출처 필터", list(options.keys()), horizontal=True, key="source_metric_filter")
-    selected_source = options[selected_label]
-
-    left, right = st.columns([1.18, 0.82], gap="large")
+    left, right = st.columns([1.25, 0.75], gap="large")
     with left:
-        ui.section_title("출처별 반응량 비교", f"현재 보기: {selected_label}")
-        _grouped_bar(frames, selected_source)
+        ui.section_title("우호·중립·비판 표현 분포", f"{issue} · {SOURCE_LABELS.get(source, '전체 출처')}")
+        _mood_bar(period_key, issue, source)
+        _mood_cards(period_key, issue, source)
     with right:
-        ui.section_title("선택 출처 게시물·댓글 수", "필터 기준으로 후보별 지표를 표시")
-        _detail_table(frames, selected_source)
+        _data_method_card(period_key, context)
 
-    left2, right2 = st.columns([0.85, 1.15], gap="large")
-    with left2:
-        ui.section_title("출처별 비중", "뉴스·영상·게시글·댓글 기준")
-        _donut(frames)
-    with right2:
-        source = source_summary(frames)
-        osh_news = source[(source["source"].eq("news")) & (source["candidate_code"].eq("OSH"))]["reaction_count"].iloc[0]
-        jwo_news = source[(source["source"].eq("news")) & (source["candidate_code"].eq("JWO"))]["reaction_count"].iloc[0]
-        news_text = "오세훈 관련 보도량이 조금 더 많게 관측됩니다" if osh_news >= jwo_news else "정원오 관련 보도량이 조금 더 많게 관측됩니다"
-        ui.notice(
-            f"뉴스에서는 {news_text}. 유튜브와 커뮤니티는 짧은 영상·게시글 확산의 영향을 크게 받고, 댓글 출처는 특정 쟁점의 토론량에 따라 변동될 수 있습니다.",
-            "blue",
+    ui.section_title("근거 샘플", "현재 선택된 쟁점·출처·후보·반응 유형 기준")
+    candidate, reaction_type, sort = ui.selected_evidence_filters()
+    evidence = get_evidence_samples(
+        period_key,
+        issue=issue,
+        source=source,
+        candidate=candidate,
+        reaction_type=reaction_type,
+        sort=sort,
+    )
+    ui.render_evidence_table(evidence, limit=12, include_issue=False)
+    ui.demo_link_notice_button("reaction_page_demo_link_notice")
+
+    with st.expander("분석 방법 안내", expanded=False):
+        st.write(
+            "본 화면은 공개 온라인 반응 데이터의 흐름을 설명하기 위한 데모입니다. "
+            "근거 샘플은 mock data이며 실제 외부 원문 링크를 제공하지 않습니다. "
+            "성별, 연령대, 지역별 유권자 분포, 실제 지지율, 득표율 예측, 당선 가능성은 포함하지 않습니다."
         )

@@ -3,119 +3,74 @@ from __future__ import annotations
 import streamlit as st
 
 import components as ui
-from data_loader import collection_status, format_number
+from data_loader import DEMO_WARNING, format_number, get_collection_status, load_data
 
 
-def render(data: dict, frames: dict, context: dict) -> None:
-    status = collection_status(frames)
-    ui.section_title("데이터 안내", "데이터 출처, 수집 상태, 지표 정의와 한계를 시민에게 공개합니다.")
+def render(data: dict, period_key: str, context: dict) -> None:
+    ui.section_title("데이터 안내", "데이터 출처, 구조, 한계와 향후 DB 전환 지점")
+    ui.demo_notice()
 
-    st.markdown(
-        """
-        <div class="notice warning">
-            이 데이터는 여론조사나 투표 예측이 아닙니다.<br/>
-            본 서비스는 공개 온라인 출처에서 수집 가능한 반응량과 텍스트 흐름을 보여주는 참고용 대시보드입니다.<br/>
-            표시된 수치는 실제 지지율, 득표율, 선거 결과 예측을 의미하지 않습니다.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
+    status = get_collection_status(period_key)
     left, right = st.columns([1.05, 0.95], gap="large")
     with left:
         st.markdown(
-            """
-            <div class="card">
-                <div class="section-title" style="margin-top:0"><h2>데이터 출처 설명</h2></div>
-                <div class="kpi-grid">
-                    <div class="kpi-mini">
-                        <div class="kpi-mini-title blue-text">뉴스</div>
-                        <div class="reason-text">주요 언론 기사 제목, 본문, 공개 댓글을 수집 대상으로 가정합니다.</div>
-                    </div>
-                    <div class="kpi-mini">
-                        <div class="kpi-mini-title red-text">영상·게시글</div>
-                        <div class="reason-text">유튜브 영상, 블로그, 카페, 커뮤니티 게시글의 공개 텍스트를 대상으로 합니다.</div>
-                    </div>
-                    <div class="kpi-mini">
-                        <div class="kpi-mini-title" style="color:#16a34a;">댓글</div>
-                        <div class="reason-text">뉴스, 영상, 게시글에 달린 공개 댓글 중 수집 가능한 댓글을 대상으로 합니다.</div>
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
             f"""
-            <div class="card" style="margin-top:16px;">
-                <div class="section-title" style="margin-top:0"><h2>수집 상태</h2></div>
-                <div style="display:grid; grid-template-columns:1fr auto; gap:12px; font-size:15px;">
-                    <div class="metric-label">마지막 업데이트 시간</div><b>{status['updated_at']}</b>
-                    <div class="metric-label">수집 상태</div><b style="color:#15803d;">{status['collection_status']}</b>
-                    <div class="metric-label">분석 기간</div><b>{context['range_text']}</b>
-                    <div class="metric-label">총 수집 항목</div><b>{format_number(status['total_items'])}건</b>
-                </div>
-                <div class="notice gray" style="margin-top:16px;">{status['warning_text']}</div>
+            <div class="card">
+                <div class="section-title" style="margin-top:0"><h2>수집·분석 범위</h2></div>
+                <ul style="margin:0; padding-left:18px; line-height:1.85;">
+                    <li>수집 기간: {context['range_text']}</li>
+                    <li>수집 출처: {status['source_scope']}</li>
+                    <li>수집 상태: {status['collection_status']}</li>
+                    <li>수집 규모: {format_number(status['total_items'])}건</li>
+                    <li>마지막 업데이트: {status['updated_at']}</li>
+                </ul>
+                <div class="warning-card" style="margin-top:14px;">{DEMO_WARNING}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
     with right:
         st.markdown(
             """
             <div class="card">
-                <div class="section-title" style="margin-top:0"><h2>데이터 한계</h2></div>
-                <div class="reason-text">
-                    공개 온라인 데이터는 전체 시민 의견을 대표하지 않습니다.<br/>
-                    특정 플랫폼 이용자, 게시물 확산 방식, 언론 보도량, 중복 댓글의 영향을 받을 수 있습니다.<br/>
-                    자동 텍스트 분류는 비꼼, 반어, 맥락을 완벽히 해석하지 못할 수 있습니다.<br/>
-                    성별·연령대·기기별 클릭·지역별 유권자 분포는 현재 데이터에 없으므로 분석에서 제외했습니다.
-                </div>
+                <div class="section-title" style="margin-top:0"><h2>제외 항목</h2></div>
+                <ul style="margin:0; padding-left:18px; line-height:1.85;">
+                    <li>실제 지지율, 득표율 예측, 당선 가능성</li>
+                    <li>선거 결과 예측</li>
+                    <li>성별·연령대·기기별 클릭 비율</li>
+                    <li>지역별 유권자 분포</li>
+                    <li>근거가 부족한 이슈 확산 경로 시각화</li>
+                </ul>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.markdown(
-            """
-            <div class="card" style="margin-top:16px;">
-                <div class="section-title" style="margin-top:0"><h2>지표 설명</h2></div>
-                <div class="kpi-mini">
-                    <div class="kpi-mini-title blue-text">온라인 반응 점수</div>
-                    <div class="reason-text">
-                        온라인 반응 점수는 뉴스·영상·게시글·댓글에서 관측된 언급량과 반응량을
-                        0~100 범위로 바꾼 참고 점수입니다. 실제 지지율이 아닙니다.
-                    </div>
-                </div>
-                <div class="kpi-mini" style="margin-top:12px;">
-                    <div class="kpi-mini-title blue-text">연관어·쟁점</div>
-                    <div class="reason-text">
-                        후보명과 함께 등장한 단어를 집계해 쟁점별로 묶은 값입니다.
-                        실제 검색 로그나 개인 관심사 데이터가 아닙니다.
-                    </div>
-                </div>
-                <div class="kpi-mini" style="margin-top:12px;">
-                    <div class="kpi-mini-title blue-text">반응 분위기 분석</div>
-                    <div class="reason-text">
-                        공개 텍스트를 우호 표현, 중립 표현, 비판 표현으로 자동 분류한 값입니다.
-                        근거 샘플과 함께 확인해야 합니다.
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+    frames = load_data()
+    rows = []
+    for name, frame in frames.items():
+        rows.append(
+            f'<tr><td>{name}</td><td class="num">{format_number(len(frame))}</td><td>{", ".join(frame.columns[:8])}</td></tr>'
         )
+    ui.section_title("mock CSV 구조", "Streamlit Cloud 배포 환경에서 상대 경로로 로드")
+    html = (
+        '<table class="html-table">'
+        '<thead><tr><th>데이터셋</th><th class="num">행 수</th><th>주요 컬럼</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
+    ui.section_title("향후 실제 DB 연결 시 교체 함수", "UI는 데이터 로딩 방식에 직접 의존하지 않도록 분리")
     st.markdown(
         """
-        <div class="card" style="margin-top:16px;">
-            <div class="section-title" style="margin-top:0"><h2>실제 DB 연동 계획</h2></div>
-            <div class="reason-text">
-                현재 버전은 <b>mock CSV 데이터</b>를 사용합니다.
-                실제 DB가 연결되면 <b>data_loader.py</b>의 로드 함수만 교체하고,
-                페이지와 차트 컴포넌트는 그대로 재사용할 수 있도록 분리했습니다.
+        <div class="card">
+            <div class="summary-grid">
+                <div class="mini-kpi"><div class="mini-kpi-title">get_reaction_timeseries()</div><div class="table-note">전체 후보·출처별 일자 흐름 조회</div></div>
+                <div class="mini-kpi"><div class="mini-kpi-title">get_issue_summary()</div><div class="table-note">쟁점별 후보 반응 비중 조회</div></div>
+                <div class="mini-kpi"><div class="mini-kpi-title">get_issue_detail_timeseries()</div><div class="table-note">선택 쟁점·출처별 시계열 조회</div></div>
+                <div class="mini-kpi"><div class="mini-kpi-title">get_source_summary()</div><div class="table-note">출처별 게시물·댓글·반응량 조회</div></div>
+                <div class="mini-kpi"><div class="mini-kpi-title">get_evidence_samples()</div><div class="table-note">mock 근거 샘플 또는 실제 근거 테이블 조회</div></div>
+                <div class="mini-kpi"><div class="mini-kpi-title">get_candidate_summary()</div><div class="table-note">후보별 기간 요약 지표 조회</div></div>
             </div>
         </div>
         """,
