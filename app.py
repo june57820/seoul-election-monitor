@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 
 import components as ui
-from data_loader import DATA_DIR, DEMO_WARNING, clear_data_cache, load_data
+from data_loader import DATA_DIR, DEMO_WARNING, load_data
 from pages import (
     page_01_home,
     page_02_candidate_info,
@@ -43,7 +43,8 @@ def ensure_mock_data() -> None:
     if all((DATA_DIR / filename).exists() for filename in REQUIRED_DATA):
         return
     runpy.run_path(str(ROOT_DIR / "scripts" / "generate_mock_data.py"), run_name="__main__")
-    clear_data_cache()
+    if hasattr(load_data, "cache_clear"):
+        load_data.cache_clear()
 
 
 def normalize_page() -> str:
