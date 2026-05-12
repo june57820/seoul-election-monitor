@@ -8,3 +8,5 @@ naver_*.html
 public_url.txt
 public_share_status.json
 public_share_watchdog.log
+gh-auth-*.txt
+gh-auth-*.pid
