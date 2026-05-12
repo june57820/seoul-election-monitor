@@ -21,6 +21,8 @@ python scripts/generate_mock_data.py
 streamlit run app.py
 ```
 
+Streamlit Community Cloud 배포 시 main file path는 `streamlit_app.py`로 지정하면 됩니다.
+
 ## 외부 공유용 임시 공개 링크
 
 계정 없이 바로 외부 공유 링크를 만들려면 Windows PowerShell에서 다음을 실행합니다.

@@ -21,12 +21,18 @@ https://seoul-election-monitor.streamlit.app
 ```text
 Repository: GitHub에 올린 저장소
 Branch: main
-Main file path: app.py
+Main file path: streamlit_app.py
 Python version: 3.11 또는 3.12
 App URL: seoul-election-monitor 등 사용 가능한 이름
 ```
 
-현재 프로젝트는 배포에 필요한 `requirements.txt`, `.streamlit/config.toml`, `app.py`, mock CSV 데이터를 포함합니다.
+현재 프로젝트는 배포에 필요한 `requirements.txt`, `.streamlit/config.toml`, `streamlit_app.py`, `app.py`, mock CSV 데이터를 포함합니다.
+
+Paste GitHub URL 방식을 쓰는 경우에는 다음처럼 `/blob/main/`이 포함된 파일 URL을 입력합니다.
+
+```text
+https://github.com/june57820/seoul-election-monitor/blob/main/streamlit_app.py
+```
 
 ## 자체 도메인을 쓰는 방법
 
