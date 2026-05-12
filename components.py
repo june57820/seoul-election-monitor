@@ -923,7 +923,7 @@ def render_sidebar(page: str) -> None:
     for label, key, icon in items:
         if key:
             active = " active" if page == key else ""
-            links.append(f'<a class="sidebar-item{active}" href="{page_url(key)}"><span>{icon}</span><span>{escape(label)}</span></a>')
+            links.append(f'<a class="sidebar-item{active}" href="{page_url(key)}" target="_self"><span>{icon}</span><span>{escape(label)}</span></a>')
         else:
             links.append(f'<div class="sidebar-item disabled"><span>{icon}</span><span>{escape(label)}</span></div>')
     st.markdown(
@@ -946,7 +946,7 @@ def render_sidebar(page: str) -> None:
 def render_header(page: str) -> None:
     tabs = [("개요", "home"), ("후보·쟁점", "candidate"), ("추이·출처", "trend"), ("반응·근거", "evidence")]
     tab_html = "".join(
-        f'<a class="tab-link{" active" if page == key else ""}" href="{page_url(key)}">{label}</a>' for label, key in tabs
+        f'<a class="tab-link{" active" if page == key else ""}" href="{page_url(key)}" target="_self">{label}</a>' for label, key in tabs
     )
     st.markdown(
         f"""
@@ -1110,7 +1110,7 @@ def issue_selector(issue_summary: pd.DataFrame, selected_issue: str, page: str =
             jwo, osh, total = 50.0, 50.0, "0"
         active = " active" if issue == selected_issue else ""
         rows.append(
-            f'<a class="issue-link{active}" href="{page_url(page, issue)}">'
+            f'<a class="issue-link{active}" href="{page_url(page, issue)}" target="_self">'
             f'<div class="issue-name">{escape(issue)}</div>'
             f'<div class="share-track" style="--jwo:{jwo}%; --osh:{osh}%;">'
             f'<div class="share-blue"></div><div class="share-red"></div></div>'
