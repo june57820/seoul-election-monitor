@@ -7,7 +7,6 @@ import components as ui
 from data_loader import (
     CANDIDATE_COLORS,
     CANDIDATE_ORDER,
-    DEMO_WARNING,
     ISSUE_ORDER,
     SOURCE_LABELS,
     SOURCE_OPTIONS,
@@ -124,12 +123,11 @@ def _evidence_context_label(period_key: str, issue: str, source: str) -> None:
     else:
         date = detail.sort_values("reaction_count", ascending=False).iloc[0]["date"]
         label = f"현재 근거 샘플: {issue} 쟁점 · {short_date_text(date)} 반응 집중일 기준"
-    st.markdown(f'<div class="note-card">{label}<br/>{DEMO_WARNING}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="note-card">{label}<br/>근거 샘플은 mock data이며 실제 원문 링크를 제공하지 않습니다.</div>', unsafe_allow_html=True)
 
 
 def render(data: dict, period_key: str, context: dict) -> None:
     ui.section_title("반응·근거", "반응 분위기 분석과 mock 근거 샘플")
-    ui.demo_notice()
 
     issue, source = _context_filters()
     _evidence_context_label(period_key, issue, source)

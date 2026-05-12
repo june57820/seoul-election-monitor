@@ -12,6 +12,8 @@ DATA_DIR = BASE_DIR / "data" / "mock"
 ASSET_DIR = BASE_DIR / "assets" / "images"
 
 DEMO_WARNING = "본 대시보드는 공개 온라인 반응을 수집·분석한 데모 화면이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다."
+DATA_START = pd.Timestamp("2026-01-01")
+DATA_END = pd.Timestamp("2026-05-12")
 
 PERIOD_OPTIONS = {
     "7d": {"label": "7일", "title": "최근 7일", "days": 7},
@@ -75,16 +77,52 @@ def latest_data_date(data: dict[str, pd.DataFrame] | None = None) -> pd.Timestam
     return frames["issue_detail_timeseries"]["date"].max()
 
 
+def make_range_period_key(start: pd.Timestamp | str, end: pd.Timestamp | str) -> str:
+    start_date = pd.to_datetime(start).strftime("%Y-%m-%d")
+    end_date = pd.to_datetime(end).strftime("%Y-%m-%d")
+    return f"range:{start_date}:{end_date}"
+
+
+def _clamped_date(value: pd.Timestamp | str) -> pd.Timestamp:
+    date = pd.to_datetime(value).normalize()
+    return min(max(date, DATA_START), DATA_END)
+
+
+def _parse_range_period(period_key: str) -> tuple[pd.Timestamp, pd.Timestamp] | None:
+    if not isinstance(period_key, str) or not period_key.startswith("range:"):
+        return None
+    parts = period_key.split(":")
+    if len(parts) != 3:
+        return None
+    start_date = _clamped_date(parts[1])
+    end_date = _clamped_date(parts[2])
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
 def period_context(period_key: str, data: dict[str, pd.DataFrame] | None = None) -> dict[str, Any]:
     frames = data or load_data()
-    option = PERIOD_OPTIONS.get(period_key, PERIOD_OPTIONS["7d"])
-    end_date = latest_data_date(frames)
-    start_date = end_date - pd.Timedelta(days=option["days"] - 1)
+    range_dates = _parse_range_period(period_key)
+    if range_dates:
+        start_date, end_date = range_dates
+        days = int((end_date - start_date).days) + 1
+        label = "사용자 지정" if days not in {7, 14, 30} else f"{days}일"
+        if days == 30:
+            label = "1개월"
+        title = "사용자 지정 기간"
+    else:
+        option = PERIOD_OPTIONS.get(period_key, PERIOD_OPTIONS["7d"])
+        end_date = min(latest_data_date(frames), DATA_END)
+        start_date = max(end_date - pd.Timedelta(days=option["days"] - 1), DATA_START)
+        days = int((end_date - start_date).days) + 1
+        label = option["label"]
+        title = option["title"]
     return {
         "period_key": period_key,
-        "label": option["label"],
-        "title": option["title"],
-        "days": option["days"],
+        "label": label,
+        "title": title,
+        "days": days,
         "start": start_date,
         "end": end_date,
         "start_text": start_date.strftime("%Y.%m.%d"),

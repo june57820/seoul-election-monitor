@@ -7,7 +7,6 @@ import components as ui
 from data_loader import (
     CANDIDATE_COLORS,
     CANDIDATE_ORDER,
-    DEMO_WARNING,
     SOURCE_LABELS,
     format_number,
     format_percent,
@@ -226,7 +225,6 @@ def render(data: dict, period_key: str, context: dict) -> None:
     summary = get_candidate_summary(period_key)
     issue_summary = get_issue_summary(period_key)
 
-    ui.demo_notice()
     left, center, right = st.columns([1.05, 0.95, 1.05], gap="medium")
     with left:
         st.markdown(ui.candidate_card(summary[summary["candidate"].eq("정원오")].iloc[0]), unsafe_allow_html=True)
@@ -234,6 +232,8 @@ def render(data: dict, period_key: str, context: dict) -> None:
         st.markdown(ui.issue_insight(selected_issue, issue_summary), unsafe_allow_html=True)
     with right:
         st.markdown(ui.candidate_card(summary[summary["candidate"].eq("오세훈")].iloc[0]), unsafe_allow_html=True)
+
+    ui.metric_explainer()
 
     with st.expander("후보 공식 채널 보기", expanded=False):
         channels = get_candidate_channels()
@@ -305,4 +305,3 @@ def render(data: dict, period_key: str, context: dict) -> None:
     )
     ui.render_evidence_table(evidence, limit=8, include_issue=False)
     ui.demo_link_notice_button("candidate_demo_link_notice")
-    st.caption(DEMO_WARNING)

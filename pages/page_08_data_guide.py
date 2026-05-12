@@ -3,12 +3,11 @@ from __future__ import annotations
 import streamlit as st
 
 import components as ui
-from data_loader import DEMO_WARNING, format_number, get_collection_status, load_data
+from data_loader import format_number, get_collection_status, load_data
 
 
 def render(data: dict, period_key: str, context: dict) -> None:
     ui.section_title("데이터 안내", "데이터 출처, 구조, 한계와 향후 DB 전환 지점")
-    ui.demo_notice()
 
     status = get_collection_status(period_key)
     left, right = st.columns([1.05, 0.95], gap="large")
@@ -24,7 +23,7 @@ def render(data: dict, period_key: str, context: dict) -> None:
                     <li>수집 규모: {format_number(status['total_items'])}건</li>
                     <li>마지막 업데이트: {status['updated_at']}</li>
                 </ul>
-                <div class="warning-card" style="margin-top:14px;">{DEMO_WARNING}</div>
+                <div class="note-card" style="margin-top:14px;">이 화면은 mock data 구조와 향후 DB 전환 지점을 설명하기 위한 안내 페이지입니다.</div>
             </div>
             """,
             unsafe_allow_html=True,

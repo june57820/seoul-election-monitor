@@ -11,8 +11,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data" / "mock"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-RNG = np.random.default_rng(20260511)
-DATES = pd.date_range("2026-04-12", "2026-05-11", freq="D")
+RNG = np.random.default_rng(20260512)
+DATES = pd.date_range("2026-01-01", "2026-05-12", freq="D")
 
 CANDIDATES = [
     {
@@ -323,7 +323,7 @@ def build_evidence_samples(detail: pd.DataFrame) -> pd.DataFrame:
         "community_x": "커뮤니티/X 게시글",
     }
     rows: list[dict[str, object]] = []
-    top_dates = pd.to_datetime(detail["date"]).drop_duplicates().sort_values(ascending=False).head(14).tolist()
+    top_dates = pd.to_datetime(detail["date"]).drop_duplicates().sort_values(ascending=False).tolist()
     for issue in ISSUES:
         for candidate in ["정원오", "오세훈"]:
             keywords = ISSUE_KEYWORDS[issue][candidate]
@@ -366,7 +366,7 @@ def build_collection_status(detail: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "updated_at": "2026-05-11 10:00",
+                "updated_at": "2026-05-12 10:00",
                 "latest_date": latest.strftime("%Y-%m-%d"),
                 "collection_status": "정상 수집 중",
                 "total_items": int(detail["reaction_count"].sum()),
@@ -401,7 +401,7 @@ def write_legacy_alias_files(detail: pd.DataFrame, reaction: pd.DataFrame, keywo
         columns={"candidate": "candidate_code", "issue": "issue_category"}
     ).copy()
     legacy_keywords["candidate_code"] = legacy_keywords["candidate_code"].map(candidate_code)
-    legacy_keywords["metric_date"] = "2026-05-11"
+    legacy_keywords["metric_date"] = "2026-05-12"
     legacy_keywords["keyword_type"] = np.where(legacy_keywords["rank_change"] > 0, "rising", "persistent")
     legacy_keywords[
         [

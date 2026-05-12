@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 
 import components as ui
-from data_loader import DATA_DIR, DEMO_WARNING, load_data
+from data_loader import DATA_DIR, load_data
 from pages import (
     page_01_home,
     page_02_candidate_info,
@@ -87,15 +87,6 @@ def main() -> None:
     data = load_data()
     render = ROUTES[page]
     render(data, period_key, context)
-
-    st.markdown(
-        f"""
-        <div class="table-note" style="margin-top:24px; padding-bottom:20px;">
-            {DEMO_WARNING}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 if __name__ == "__main__":

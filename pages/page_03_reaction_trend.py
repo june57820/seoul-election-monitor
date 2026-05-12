@@ -7,7 +7,6 @@ import components as ui
 from data_loader import (
     CANDIDATE_COLORS,
     CANDIDATE_ORDER,
-    DEMO_WARNING,
     SOURCE_LABELS,
     SOURCE_OPTIONS,
     format_number,
@@ -158,9 +157,9 @@ def _source_timeseries(period_key: str, source: str) -> None:
 
 def render(data: dict, period_key: str, context: dict) -> None:
     ui.section_title("추이·출처", "전체 공개 온라인 반응 흐름과 출처별 변화")
-    ui.notice(DEMO_WARNING, "warning")
 
     candidate, source, metric = _trend_filters()
+    ui.metric_explainer(compact=True)
     source_label = SOURCE_LABELS.get(source, "전체")
 
     left, right = st.columns([1.35, 0.85], gap="large")

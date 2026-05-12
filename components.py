@@ -12,6 +12,8 @@ import streamlit as st
 from data_loader import (
     CANDIDATE_COLORS,
     CANDIDATE_ORDER,
+    DATA_END,
+    DATA_START,
     DEMO_WARNING,
     ISSUE_ORDER,
     METRIC_OPTIONS,
@@ -22,6 +24,7 @@ from data_loader import (
     format_number,
     format_percent,
     get_candidate_image,
+    make_range_period_key,
     period_context,
     short_date_text,
 )
@@ -416,9 +419,10 @@ def inject_css() -> None:
 
         .candidate-card {{
             display: grid;
-            grid-template-columns: 104px 1fr;
+            grid-template-columns: 112px minmax(0, 1fr);
             gap: 14px;
             min-height: 166px;
+            align-items: start;
             overflow: hidden;
         }}
 
@@ -433,19 +437,21 @@ def inject_css() -> None:
         }}
 
         .candidate-photo-wrap {{
-            width: 104px;
-            height: 132px;
+            width: 112px;
+            height: 140px;
             border-radius: 14px;
             overflow: hidden;
             border: 1px solid var(--line);
-            background: #eef2f7;
-            align-self: center;
+            background: #f8fafc;
+            align-self: start;
+            justify-self: start;
+            flex: 0 0 auto;
         }}
 
         .candidate-photo-wrap img {{
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             object-position: center top;
             display: block;
         }}
@@ -719,8 +725,18 @@ def inject_css() -> None:
         }}
 
         .cloud-word.active {{
-            background: #fef3c7;
-            color: #92400e !important;
+            background: transparent;
+            color: inherit !important;
+            box-shadow: inset 0 -7px rgba(148, 163, 184, 0.22);
+            border-radius: 7px;
+        }}
+
+        .cloud-word.blue-text.active {{
+            box-shadow: inset 0 -7px rgba(37, 99, 235, 0.16);
+        }}
+
+        .cloud-word.red-text.active {{
+            box-shadow: inset 0 -7px rgba(239, 51, 64, 0.16);
         }}
 
         .table-note {{
@@ -842,11 +858,11 @@ def inject_css() -> None:
                 max-width: none;
             }}
             .candidate-card {{
-                grid-template-columns: 96px 1fr;
+                grid-template-columns: 98px minmax(0, 1fr);
             }}
             .candidate-photo-wrap {{
-                width: 96px;
-                height: 116px;
+                width: 98px;
+                height: 124px;
             }}
             .metric-row, .summary-grid {{
                 grid-template-columns: 1fr;
@@ -864,11 +880,11 @@ def inject_css() -> None:
                 font-size: 28px;
             }}
             .candidate-card {{
-                grid-template-columns: 1fr;
+                grid-template-columns: 88px minmax(0, 1fr);
             }}
             .candidate-photo-wrap {{
-                width: 118px;
-                height: 130px;
+                width: 88px;
+                height: 112px;
             }}
             .section-title {{
                 display: block;
@@ -915,8 +931,6 @@ def render_sidebar(page: str) -> None:
         ("비교 분석", "candidate", "♙"),
         ("출처 탐색", "trend", "⌕"),
         ("반응·근거", "evidence", "◉"),
-        ("알림 설정", "", "◔"),
-        ("보고서", "", "▤"),
         ("데이터 안내", "guide", "ⓘ"),
     ]
     links = []
@@ -961,7 +975,7 @@ def render_header(page: str) -> None:
             </div>
             <div class="election-card">
                 <div class="label">서울시장 선거</div>
-                <div class="dday">D-23</div>
+                <div class="dday">D-22</div>
                 <div class="date">2026.06.03 (수)</div>
             </div>
         </div>
@@ -974,34 +988,70 @@ def render_header(page: str) -> None:
 def render_period_controls() -> tuple[str, dict]:
     if "selected_period" not in st.session_state:
         st.session_state.selected_period = "7d"
-    period_key = st.session_state.selected_period
-    ctx = period_context(period_key)
-    st.session_state.selected_date_range = (ctx["start"].date(), ctx["end"].date())
+
+    current_key = st.session_state.selected_period
+    ctx = period_context(current_key)
+    current_range = st.session_state.get("selected_date_range", (ctx["start"].date(), ctx["end"].date()))
+    if not isinstance(current_range, tuple) or len(current_range) != 2:
+        current_range = (ctx["start"].date(), ctx["end"].date())
 
     with st.container():
         cols = st.columns([0.35, 0.38, 0.27], gap="small")
-        with cols[0]:
-            st.markdown('<div class="control-label">분석 기간</div>', unsafe_allow_html=True)
-            st.date_input(
-                "분석 기간",
-                value=st.session_state.selected_date_range,
-                disabled=True,
-                label_visibility="collapsed",
-            )
         with cols[1]:
             st.markdown('<div class="control-label">기간 선택</div>', unsafe_allow_html=True)
-            selected = st.radio(
-                "기간 선택",
-                list(PERIOD_OPTIONS.keys()),
-                format_func=lambda key: PERIOD_OPTIONS[key]["label"],
-                horizontal=True,
-                key="selected_period",
+            button_cols = st.columns(3, gap="small")
+            for button_col, key in zip(button_cols, PERIOD_OPTIONS):
+                with button_col:
+                    if st.button(
+                        PERIOD_OPTIONS[key]["label"],
+                        key=f"period_quick_{key}",
+                        type="primary" if st.session_state.selected_period == key else "secondary",
+                        width="stretch",
+                    ):
+                        quick_ctx = period_context(key)
+                        st.session_state.selected_period = key
+                        st.session_state.selected_date_range = (quick_ctx["start"].date(), quick_ctx["end"].date())
+                        current_range = st.session_state.selected_date_range
+
+        with cols[0]:
+            st.markdown('<div class="control-label">분석 기간</div>', unsafe_allow_html=True)
+            selected_range = st.date_input(
+                "분석 기간",
+                value=current_range,
+                min_value=DATA_START.date(),
+                max_value=DATA_END.date(),
+                format="YYYY.MM.DD",
                 label_visibility="collapsed",
             )
+            if isinstance(selected_range, tuple):
+                if len(selected_range) == 0:
+                    start_date, end_date = current_range
+                elif len(selected_range) == 1:
+                    start_date = end_date = selected_range[0]
+                else:
+                    start_date, end_date = selected_range[0], selected_range[1]
+            else:
+                start_date = end_date = selected_range
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
+            st.session_state.selected_date_range = (start_date, end_date)
+            range_key = make_range_period_key(start_date, end_date)
+            quick_match = next(
+                (
+                    key
+                    for key in PERIOD_OPTIONS
+                    if period_context(key)["start"].date() == start_date and period_context(key)["end"].date() == end_date
+                ),
+                None,
+            )
+            st.session_state.selected_period = quick_match or range_key
+
+        selected = st.session_state.selected_period
+        ctx = period_context(selected)
         with cols[2]:
             st.markdown('<div class="control-label">데이터 기준</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="table-note" style="margin-top:9px;">{ctx["range_text"]}<br/>공개 온라인 반응 기준</div>', unsafe_allow_html=True)
-    return selected, period_context(selected)
+    return selected, ctx
 
 
 def section_title(title: str, caption: str | None = None) -> None:
@@ -1016,6 +1066,19 @@ def notice(text: str, tone: str = "blue") -> None:
 
 def demo_notice() -> None:
     notice(DEMO_WARNING, "warning")
+
+
+def metric_explainer(compact: bool = False) -> None:
+    body = (
+        "반응량은 선택 기간에 관측된 공개 온라인 반응 건수입니다. "
+        "반응점수는 반응량, 출처별 관측치, 우호·중립·비판 표현 구성을 0-100 범위로 정규화한 데모 지표이며 실제 지지율이 아닙니다."
+    )
+    if compact:
+        body = (
+            "반응량은 공개 온라인 반응 건수, 반응점수는 반응량과 반응 분위기를 0-100 범위로 정규화한 데모 지표입니다. "
+            "실제 지지율이 아닙니다."
+        )
+    st.markdown(f'<div class="note-card">{body}</div>', unsafe_allow_html=True)
 
 
 def chip_list(items: list[str], tone: str = "blue", limit: int | None = None) -> str:

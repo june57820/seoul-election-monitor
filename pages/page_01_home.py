@@ -7,7 +7,6 @@ import components as ui
 from data_loader import (
     CANDIDATE_COLORS,
     CANDIDATE_ORDER,
-    DEMO_WARNING,
     format_number,
     get_candidate_summary,
     get_collection_status,
@@ -64,8 +63,6 @@ def _source_snapshot(period_key: str) -> None:
 
 
 def render(data: dict, period_key: str, context: dict) -> None:
-    ui.demo_notice()
-
     summary = get_candidate_summary(period_key)
     left, center, right = st.columns([1.05, 0.92, 1.05], gap="medium")
     with left:
@@ -76,6 +73,8 @@ def render(data: dict, period_key: str, context: dict) -> None:
         st.markdown(ui.issue_insight(selected, issue), unsafe_allow_html=True)
     with right:
         st.markdown(ui.candidate_card(summary[summary["candidate"].eq("오세훈")].iloc[0], compact=True), unsafe_allow_html=True)
+
+    ui.metric_explainer(compact=True)
 
     ui.section_title("전체 공개 온라인 반응 흐름", f"{context['title']} · 후보별 전체 반응량")
     chart_col, side_col = st.columns([1.6, 0.8], gap="large")
@@ -97,7 +96,7 @@ def render(data: dict, period_key: str, context: dict) -> None:
                     <div class="metric-label">수집 출처</div><div>{status['source_scope']}</div>
                     <div class="metric-label">반응량 합계</div><div>{format_number(status['total_items'])}건</div>
                 </div>
-                <div class="table-note">{DEMO_WARNING}</div>
+                <div class="table-note">수집 현황은 mock data 기준이며 선택한 분석 기간에 맞춰 갱신됩니다.</div>
             </div>
             """,
             unsafe_allow_html=True,
