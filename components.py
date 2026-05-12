@@ -926,20 +926,6 @@ def page_url(page: str, issue: str | None = None) -> str:
 
 
 def render_sidebar(page: str) -> None:
-    items = [
-        ("대시보드", "home", "▦"),
-        ("비교 분석", "candidate", "♙"),
-        ("출처 탐색", "trend", "⌕"),
-        ("반응·근거", "evidence", "◉"),
-        ("데이터 안내", "guide", "ⓘ"),
-    ]
-    links = []
-    for label, key, icon in items:
-        if key:
-            active = " active" if page == key else ""
-            links.append(f'<a class="sidebar-item{active}" href="{page_url(key)}" target="_self"><span>{icon}</span><span>{escape(label)}</span></a>')
-        else:
-            links.append(f'<div class="sidebar-item disabled"><span>{icon}</span><span>{escape(label)}</span></div>')
     st.markdown(
         f"""
         <aside class="app-sidebar">
@@ -947,7 +933,6 @@ def render_sidebar(page: str) -> None:
                 <div class="brand-line">↗</div>
                 <div class="sidebar-title">서울 여론모니터</div>
             </div>
-            <nav class="sidebar-menu">{"".join(links)}</nav>
             <div class="sidebar-footer">
                 서울특별시<br/>여론 모니터링 서비스<br/>Ver. 1.0.0
             </div>
