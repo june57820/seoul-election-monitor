@@ -228,14 +228,14 @@ def inject_css() -> None:
         }}
 
         .header-logo-panel {{
-            width: min(100%, 640px);
-            height: 178px;
+            width: min(100%, 980px);
+            height: clamp(184px, 15vw, 270px);
             border-radius: 24px;
             display: grid;
             place-items: center;
-            background: rgba(255,255,255,0.55);
-            border: 1px solid rgba(219, 229, 242, 0.76);
-            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.06);
+            background: transparent;
+            border: 0;
+            box-shadow: none;
             overflow: hidden;
         }}
 
@@ -243,8 +243,8 @@ def inject_css() -> None:
             width: 100%;
             height: 100%;
             object-fit: contain;
-            padding: 10px 18px;
-            opacity: 0.94;
+            padding: 0;
+            opacity: 1;
             display: block;
         }}
 
