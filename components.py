@@ -31,6 +31,7 @@ from data_loader import (
 
 
 FONT_STACK = "'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif"
+BRAND_LOGO = Path(__file__).resolve().parent / "assets" / "images" / "seoul_online_issue_radar_logo.svg"
 
 
 def inject_css() -> None:
@@ -118,7 +119,7 @@ def inject_css() -> None:
         }}
 
         .sidebar-brand {{
-            height: 130px;
+            height: 116px;
             display: grid;
             align-content: start;
             gap: 10px;
@@ -127,17 +128,24 @@ def inject_css() -> None:
             margin-bottom: 0.85rem;
         }}
 
-        .brand-line {{
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
+        .sidebar-logo-card {{
+            width: 100%;
+            height: 88px;
+            border-radius: 18px;
             display: grid;
             place-items: center;
-            border: 1px solid rgba(147, 197, 253, 0.35);
-            background: rgba(37, 99, 235, 0.14);
-            color: #bfdbfe;
-            font-size: 23px;
-            font-weight: 900;
+            border: 1px solid rgba(147, 197, 253, 0.28);
+            background: #ffffff;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+            overflow: hidden;
+        }}
+
+        .sidebar-logo-card img {{
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 6px;
+            display: block;
         }}
 
         .sidebar-title {{
@@ -1017,7 +1025,12 @@ def image_data_uri(path: Path | str | None) -> str:
     if not image_path.exists():
         return ""
     suffix = image_path.suffix.lower().lstrip(".")
-    mime = "jpeg" if suffix in {"jpg", "jpeg"} else suffix
+    if suffix in {"jpg", "jpeg"}:
+        mime = "jpeg"
+    elif suffix == "svg":
+        mime = "svg+xml"
+    else:
+        mime = suffix
     encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
     return f"data:image/{mime};base64,{encoded}"
 
@@ -1030,12 +1043,13 @@ def page_url(page: str, issue: str | None = None) -> str:
 
 
 def render_sidebar(page: str) -> None:
+    logo_uri = image_data_uri(BRAND_LOGO)
+    logo_html = f'<img src="{logo_uri}" alt="Seoul Online Issue Radar logo" />' if logo_uri else '<div class="sidebar-title">서울 여론모니터</div>'
     st.markdown(
         f"""
         <aside class="app-sidebar">
             <div class="sidebar-brand">
-                <div class="brand-line">↗</div>
-                <div class="sidebar-title">서울 여론모니터</div>
+                <div class="sidebar-logo-card">{logo_html}</div>
             </div>
             <div class="sidebar-footer">
                 서울특별시<br/>여론 모니터링 서비스<br/>Ver. 1.0.0

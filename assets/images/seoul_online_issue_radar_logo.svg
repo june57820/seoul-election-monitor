@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="70 325 1080 575" role="img" aria-labelledby="title desc">
+  <title id="title">Seoul Online Issue Radar</title>
+  <desc id="desc">Civic Radar Lab AI Issue Briefing Service logo</desc>
+  <rect width="1200" height="1200" fill="#ffffff"/>
+  <g fill="#121827" font-family="Segoe UI, Pretendard, Noto Sans KR, Arial, sans-serif" font-weight="500">
+    <text x="215" y="445" font-size="126" letter-spacing="-4">seoul</text>
+    <text x="180" y="600" font-size="126" letter-spacing="-4">online</text>
+    <text x="115" y="745" font-size="106" letter-spacing="-3">issue radar</text>
+  </g>
+  <circle cx="458" cy="407" r="12" fill="#8f7ae6"/>
+  <circle cx="687" cy="722" r="12" fill="#8f7ae6"/>
+  <path d="M405 500c20 12 32 32 32 55" fill="none" stroke="#8f7ae6" stroke-width="11" stroke-linecap="round"/>
+  <path d="M384 527c12 8 19 20 19 36" fill="none" stroke="#8f7ae6" stroke-width="10" stroke-linecap="round"/>
+  <line x1="925" y1="662" x2="925" y2="787" stroke="#121827" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="1040" cy="730" r="80" fill="#e5ddff"/>
+  <g fill="#6550cf" font-family="Comic Sans MS, Segoe Print, cursive" font-weight="700" font-size="31" letter-spacing="4">
+    <text x="992" y="699">CIVIC</text>
+    <text x="982" y="738">RADAR</text>
+    <text x="1010" y="778">LAB</text>
+  </g>
+  <text x="215" y="835" fill="#121827" font-family="Segoe UI, Pretendard, Noto Sans KR, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="18">AI Issue Briefing Service</text>
+</svg>
