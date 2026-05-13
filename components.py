@@ -268,9 +268,9 @@ def inject_css() -> None:
 
         .top-tabs {{
             display: grid;
-            grid-template-columns: repeat(4, minmax(120px, 1fr));
+            grid-template-columns: repeat(5, minmax(118px, 1fr));
             gap: 4px;
-            max-width: 590px;
+            max-width: 760px;
             margin: 0 0 10px;
         }}
 
@@ -281,7 +281,7 @@ def inject_css() -> None:
             border-bottom: 3px solid transparent;
             color: #334155 !important;
             text-decoration: none !important;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 820;
         }}
 
@@ -1047,7 +1047,13 @@ def render_sidebar(page: str) -> None:
 
 
 def render_header(page: str) -> None:
-    tabs = [("종합 요약", "home"), ("쟁점 상세 분석", "candidate"), ("전체 흐름·출처", "trend"), ("반응 분위기·근거", "evidence")]
+    tabs = [
+        ("종합 요약", "home"),
+        ("쟁점 상세 분석", "candidate"),
+        ("전체 흐름·출처", "trend"),
+        ("반응 분위기 추이", "evidence"),
+        ("근거·데이터 안내", "evidence_data"),
+    ]
     tab_html = "".join(
         f'<a class="tab-link{" active" if page == key else ""}" href="{page_url(key)}" target="_self">{label}</a>' for label, key in tabs
     )
@@ -1083,63 +1089,104 @@ def render_period_controls() -> tuple[str, dict]:
     current_range = st.session_state.get("selected_date_range", (ctx["start"].date(), ctx["end"].date()))
     if not isinstance(current_range, tuple) or len(current_range) != 2:
         current_range = (ctx["start"].date(), ctx["end"].date())
+    if "period_start_date_input" not in st.session_state:
+        st.session_state.period_start_date_input = current_range[0]
+    if "period_end_date_input" not in st.session_state:
+        st.session_state.period_end_date_input = current_range[1]
+
+    def _clamp_input_date(value) -> object:
+        date = pd.to_datetime(value).date()
+        return min(max(date, DATA_START.date()), DATA_END.date())
+
+    def _period_key_for_range(start_date, end_date) -> str:
+        range_key = make_range_period_key(start_date, end_date)
+        for key, option in PERIOD_OPTIONS.items():
+            option_end = period_context(key)["end"].date()
+            option_start = max(pd.to_datetime(end_date) - pd.Timedelta(days=option["days"] - 1), DATA_START).date()
+            if start_date == option_start and end_date == option_end:
+                return key
+        return range_key
+
+    def _commit_period_range(start_date, end_date) -> None:
+        start_date = _clamp_input_date(start_date)
+        end_date = _clamp_input_date(end_date)
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        st.session_state.selected_date_range = (start_date, end_date)
+        st.session_state.selected_period = _period_key_for_range(start_date, end_date)
+
+    def _sync_manual_period() -> None:
+        start_date = _clamp_input_date(st.session_state.period_start_date_input)
+        end_date = _clamp_input_date(st.session_state.period_end_date_input)
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+            st.session_state.period_start_date_input = start_date
+            st.session_state.period_end_date_input = end_date
+        _commit_period_range(start_date, end_date)
+
+    def _apply_quick_period(key: str) -> None:
+        end_date = _clamp_input_date(st.session_state.get("period_end_date_input", current_range[1]))
+        days = PERIOD_OPTIONS[key]["days"]
+        start_date = max(pd.to_datetime(end_date) - pd.Timedelta(days=days - 1), DATA_START).date()
+        st.session_state.period_start_date_input = start_date
+        st.session_state.period_end_date_input = end_date
+        _commit_period_range(start_date, end_date)
+
+    _commit_period_range(st.session_state.period_start_date_input, st.session_state.period_end_date_input)
+    selected_start, selected_end = st.session_state.selected_date_range
+    selected_days = int((pd.to_datetime(selected_end) - pd.to_datetime(selected_start)).days) + 1
+    active_quick_key = next(
+        (key for key, option in PERIOD_OPTIONS.items() if selected_days == option["days"]),
+        None,
+    )
 
     with st.container():
-        cols = st.columns([0.35, 0.38, 0.27], gap="small")
+        cols = st.columns([0.43, 0.34, 0.23], gap="small")
+        with cols[0]:
+            st.markdown('<div class="control-label">분석 기간</div>', unsafe_allow_html=True)
+            date_cols = st.columns(2, gap="small")
+            with date_cols[0]:
+                st.date_input(
+                    "시작일",
+                    min_value=DATA_START.date(),
+                    max_value=DATA_END.date(),
+                    format="YYYY.MM.DD",
+                    key="period_start_date_input",
+                    on_change=_sync_manual_period,
+                )
+            with date_cols[1]:
+                st.date_input(
+                    "종료일",
+                    min_value=DATA_START.date(),
+                    max_value=DATA_END.date(),
+                    format="YYYY.MM.DD",
+                    key="period_end_date_input",
+                    on_change=_sync_manual_period,
+                )
+            _commit_period_range(st.session_state.period_start_date_input, st.session_state.period_end_date_input)
+
         with cols[1]:
             st.markdown('<div class="control-label">기간 선택</div>', unsafe_allow_html=True)
             button_cols = st.columns(3, gap="small")
             for button_col, key in zip(button_cols, PERIOD_OPTIONS):
                 with button_col:
-                    if st.button(
+                    st.button(
                         PERIOD_OPTIONS[key]["label"],
                         key=f"period_quick_{key}",
-                        type="primary" if st.session_state.selected_period == key else "secondary",
+                        type="primary" if active_quick_key == key else "secondary",
                         width="stretch",
-                    ):
-                        quick_ctx = period_context(key)
-                        st.session_state.selected_period = key
-                        st.session_state.selected_date_range = (quick_ctx["start"].date(), quick_ctx["end"].date())
-                        current_range = st.session_state.selected_date_range
-
-        with cols[0]:
-            st.markdown('<div class="control-label">분석 기간</div>', unsafe_allow_html=True)
-            selected_range = st.date_input(
-                "분석 기간",
-                value=current_range,
-                min_value=DATA_START.date(),
-                max_value=DATA_END.date(),
-                format="YYYY.MM.DD",
-                label_visibility="collapsed",
-            )
-            if isinstance(selected_range, tuple):
-                if len(selected_range) == 0:
-                    start_date, end_date = current_range
-                elif len(selected_range) == 1:
-                    start_date = end_date = selected_range[0]
-                else:
-                    start_date, end_date = selected_range[0], selected_range[1]
-            else:
-                start_date = end_date = selected_range
-            if start_date > end_date:
-                start_date, end_date = end_date, start_date
-            st.session_state.selected_date_range = (start_date, end_date)
-            range_key = make_range_period_key(start_date, end_date)
-            quick_match = next(
-                (
-                    key
-                    for key in PERIOD_OPTIONS
-                    if period_context(key)["start"].date() == start_date and period_context(key)["end"].date() == end_date
-                ),
-                None,
-            )
-            st.session_state.selected_period = quick_match or range_key
+                        on_click=_apply_quick_period,
+                        args=(key,),
+                    )
 
         selected = st.session_state.selected_period
         ctx = period_context(selected)
         with cols[2]:
             st.markdown('<div class="control-label">데이터 기준</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="table-note" style="margin-top:9px;">{ctx["range_text"]}<br/>공개 온라인 반응 기준</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="table-note" style="margin-top:9px;">{ctx["range_text"]}<br/>공개 온라인 반응 기준</div>',
+                unsafe_allow_html=True,
+            )
     return selected, ctx
 
 

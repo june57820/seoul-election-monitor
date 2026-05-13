@@ -12,6 +12,7 @@ from pages import (
     page_02_candidate_info,
     page_03_reaction_trend,
     page_04_source_metrics,
+    page_05_evidence_data,
     page_08_data_guide,
 )
 
@@ -23,6 +24,7 @@ ROUTES = {
     "candidate": page_02_candidate_info.render,
     "trend": page_03_reaction_trend.render,
     "evidence": page_04_source_metrics.render,
+    "evidence_data": page_05_evidence_data.render,
     "guide": page_08_data_guide.render,
 }
 
