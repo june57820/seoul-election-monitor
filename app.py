@@ -90,6 +90,7 @@ def main() -> None:
     data = load_data()
     render = ROUTES[page]
     render(data, period_key, context)
+    ui.data_ethics_footer(context)
 
 
 if __name__ == "__main__":

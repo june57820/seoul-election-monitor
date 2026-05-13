@@ -153,19 +153,54 @@ def _ai_summary(period_key: str, issue: str, source: str) -> None:
         return
     totals = detail.groupby("candidate")["reaction_count"].sum()
     leader = totals.sort_values(ascending=False).index[0]
+    other = "오세훈" if leader == "정원오" else "정원오"
+    leader_total = int(totals.get(leader, 0))
+    other_total = int(totals.get(other, 0))
+    total_count = max(1, int(totals.sum()))
+    leader_share = leader_total / total_count * 100
+    gap = abs(leader_total - other_total)
     spike = detail.sort_values("reaction_count", ascending=False).iloc[0]
     keywords = str(spike["top_keywords"])
-    other = "오세훈" if leader == "정원오" else "정원오"
+    source_label = SOURCE_LABELS.get(source, "전체 출처")
+
+    mood_rows = []
+    for candidate in CANDIDATE_ORDER:
+        data = detail[detail["candidate"].eq(candidate)]
+        mood_total = max(1, int(data[["favorable_count", "neutral_count", "critical_count"]].sum().sum()))
+        fav = int(data["favorable_count"].sum())
+        neu = int(data["neutral_count"].sum())
+        cri = int(data["critical_count"].sum())
+        mood_rows.append(
+            f"{candidate}: 우호 {fav / mood_total * 100:.1f}%, 중립 {neu / mood_total * 100:.1f}%, 비판 {cri / mood_total * 100:.1f}%"
+        )
     st.markdown(
         f"""
         <div class="card">
-            <div class="section-title" style="margin-top:0"><h2>AI 보조 요약</h2><span>선택 쟁점·기간 기준</span></div>
-            <div class="insight-title" style="font-size:16px; text-align:left;">
-                {issue} 쟁점에서는 {short_date_text(spike['date'])}에 공개 온라인 반응이 크게 증가했습니다.
-            </div>
-            <div class="insight-body" style="text-align:left;">
-                {leader} 후보는 {keywords} 관련 키워드에서 반응이 집중되었고, {other} 후보도 같은 기간 관련 반응이 함께 관측됩니다.
-                이 문장은 공개 온라인 반응 데모용 seed data 기반 보조 요약입니다.
+            <div class="section-title" style="margin-top:0"><h2>AI 브리핑</h2><span>선택 쟁점·기간·출처 기준</span></div>
+            <div class="ai-briefing">
+                <div class="briefing-lead">
+                    {issue} 쟁점은 {source_label} 기준으로 {short_date_text(spike['date'])}에 반응 집중이 가장 크게 관측됩니다.
+                    선택 기간 합계에서는 {leader} 후보 관련 반응이 {format_number(leader_total)}건({leader_share:.1f}%)으로 더 많이 잡혔고,
+                    두 후보 간 공개 온라인 반응량 차이는 {format_number(gap)}건입니다.
+                </div>
+                <div class="briefing-grid">
+                    <div class="briefing-point">
+                        <div class="briefing-point-label">반응 집중 맥락</div>
+                        <div class="briefing-point-body">{leader} 후보 쪽에서는 {keywords} 키워드가 함께 등장합니다. 이는 특정 후보 선호가 아니라 공개 온라인 공간의 언급 집중을 보여주는 데모 신호입니다.</div>
+                    </div>
+                    <div class="briefing-point">
+                        <div class="briefing-point-label">상대 후보 흐름</div>
+                        <div class="briefing-point-body">{other} 후보도 같은 쟁점에서 {format_number(other_total)}건의 반응이 관측됩니다. 하단 표와 근거 샘플에서 날짜별 변화와 출처별 차이를 함께 확인해야 합니다.</div>
+                    </div>
+                    <div class="briefing-point">
+                        <div class="briefing-point-label">반응 분위기</div>
+                        <div class="briefing-point-body">{"<br/>".join(mood_rows)}</div>
+                    </div>
+                    <div class="briefing-point">
+                        <div class="briefing-point-label">해석 유의</div>
+                        <div class="briefing-point-body">이 브리핑은 공개 온라인 반응 데모용 seed data를 요약한 문장입니다. 실제 지지율·득표율·선거 결과 예측이 아니며, 표본 대표성을 전제하지 않습니다.</div>
+                    </div>
+                </div>
             </div>
         </div>
         """,
@@ -226,16 +261,20 @@ def render(data: dict, period_key: str, context: dict) -> None:
     summary = get_candidate_summary(period_key)
     issue_summary = get_issue_summary(period_key)
     channels = get_candidate_channels()
+    jwo_row = summary[summary["candidate"].eq("정원오")].iloc[0]
+    osh_row = summary[summary["candidate"].eq("오세훈")].iloc[0]
 
     left, center, right = st.columns([1.05, 0.95, 1.05], gap="medium")
     with left:
-        st.markdown(ui.candidate_card(summary[summary["candidate"].eq("정원오")].iloc[0]), unsafe_allow_html=True)
+        st.markdown(ui.candidate_card(jwo_row), unsafe_allow_html=True)
         st.markdown(ui.official_channel_strip(channels, "정원오"), unsafe_allow_html=True)
+        st.markdown(ui.candidate_observed_issue_panel(jwo_row, issue_summary), unsafe_allow_html=True)
     with center:
         st.markdown(ui.issue_insight(selected_issue, issue_summary), unsafe_allow_html=True)
     with right:
-        st.markdown(ui.candidate_card(summary[summary["candidate"].eq("오세훈")].iloc[0]), unsafe_allow_html=True)
+        st.markdown(ui.candidate_card(osh_row), unsafe_allow_html=True)
         st.markdown(ui.official_channel_strip(channels, "오세훈"), unsafe_allow_html=True)
+        st.markdown(ui.candidate_observed_issue_panel(osh_row, issue_summary), unsafe_allow_html=True)
 
     ui.metric_explainer()
 

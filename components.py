@@ -516,6 +516,133 @@ def inject_css() -> None:
             color: #071528;
         }}
 
+        .candidate-profile-summary {{
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.5;
+            font-weight: 700;
+            margin: 8px 0 4px;
+        }}
+
+        .candidate-profile-grid {{
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 12px;
+        }}
+
+        .candidate-profile-field {{
+            min-width: 0;
+            border: 1px solid rgba(203, 213, 225, 0.75);
+            border-radius: 12px;
+            background: rgba(248, 251, 255, 0.86);
+            padding: 10px 11px;
+        }}
+
+        .candidate-profile-label {{
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 900;
+            margin-bottom: 6px;
+        }}
+
+        .candidate-profile-list {{
+            display: grid;
+            gap: 4px;
+            color: #172033;
+            font-size: 12px;
+            line-height: 1.42;
+            font-weight: 720;
+        }}
+
+        .observed-issue-panel {{
+            margin-top: 10px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255,255,255,0.86);
+            padding: 11px 12px;
+        }}
+
+        .observed-issue-title {{
+            color: #334155;
+            font-size: 12px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }}
+
+        .observed-issue-grid {{
+            display: grid;
+            gap: 6px;
+        }}
+
+        .observed-issue-item {{
+            display: grid;
+            grid-template-columns: 74px 1fr auto;
+            gap: 8px;
+            align-items: center;
+            color: #172033;
+            font-size: 12px;
+            font-weight: 760;
+        }}
+
+        .observed-issue-track {{
+            height: 8px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }}
+
+        .observed-issue-fill {{
+            height: 100%;
+            border-radius: 999px;
+            background: var(--blue);
+            width: var(--share);
+        }}
+
+        .observed-issue-panel.red .observed-issue-fill {{
+            background: var(--red);
+        }}
+
+        .ai-briefing {{
+            display: grid;
+            gap: 12px;
+        }}
+
+        .briefing-lead {{
+            color: #0f172a;
+            font-size: 15px;
+            line-height: 1.64;
+            font-weight: 780;
+        }}
+
+        .briefing-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }}
+
+        .briefing-point {{
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 10px 11px;
+        }}
+
+        .briefing-point-label {{
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 900;
+            margin-bottom: 5px;
+        }}
+
+        .briefing-point-body {{
+            color: #172033;
+            font-size: 12px;
+            line-height: 1.55;
+            font-weight: 720;
+        }}
+
         .party-pill, .badge {{
             display: inline-flex;
             align-items: center;
@@ -966,6 +1093,44 @@ def inject_css() -> None:
             background: #f8fbff;
         }}
 
+        .ethics-footer {{
+            margin-top: 24px;
+            border: 1px solid #cbdff6;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.94), rgba(248,251,255,0.94));
+            box-shadow: var(--shadow-soft);
+            padding: 17px 18px;
+        }}
+
+        .ethics-footer-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }}
+
+        .ethics-footer-item {{
+            border: 1px solid var(--line);
+            border-radius: 13px;
+            background: #fff;
+            padding: 12px;
+        }}
+
+        .ethics-footer-item h3 {{
+            margin: 0 0 7px;
+            color: #1e3a8a;
+            font-size: 13px;
+            font-weight: 920;
+        }}
+
+        .ethics-footer-item p {{
+            margin: 0;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.58;
+            font-weight: 670;
+        }}
+
         .stDataFrame {{
             border-radius: 14px;
             overflow: hidden;
@@ -1008,6 +1173,9 @@ def inject_css() -> None:
                 height: 124px;
             }}
             .metric-row, .summary-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .candidate-profile-grid, .briefing-grid, .ethics-footer-grid {{
                 grid-template-columns: 1fr;
             }}
             .issue-link {{
@@ -1279,6 +1447,25 @@ def chip_list(items: list[str], tone: str = "blue", limit: int | None = None) ->
     return '<div class="chip-row">' + "".join(f'<span class="chip {tone}">{escape(str(item))}</span>' for item in values) + "</div>"
 
 
+def _pipe_items(value: object, limit: int | None = None) -> list[str]:
+    if pd.isna(value):
+        return []
+    items = [item.strip() for item in str(value).split("|") if item.strip()]
+    return items[:limit] if limit else items
+
+
+def _candidate_profile_field(label: str, items: list[str]) -> str:
+    if not items:
+        return ""
+    body = "".join(f"<div>{escape(item)}</div>" for item in items)
+    return (
+        '<div class="candidate-profile-field">'
+        f'<div class="candidate-profile-label">{escape(label)}</div>'
+        f'<div class="candidate-profile-list">{body}</div>'
+        "</div>"
+    )
+
+
 def candidate_card(row: pd.Series, compact: bool = False) -> str:
     candidate = str(row["candidate"])
     tone = "blue" if candidate == "정원오" else "red"
@@ -1291,6 +1478,18 @@ def candidate_card(row: pd.Series, compact: bool = False) -> str:
     keyword_html = chip_list(list(keywords), tone, 5)
     if compact:
         keyword_html = chip_list(list(keywords), tone, 3)
+    profile_html = ""
+    if not compact:
+        summary = str(row.get("profile_summary", "") or "")
+        fields = [
+            _candidate_profile_field("학력", _pipe_items(row.get("education"), 2)),
+            _candidate_profile_field("경력", _pipe_items(row.get("career"), 3)),
+            _candidate_profile_field("주요 공약", _pipe_items(row.get("main_pledges"), 4)),
+        ]
+        profile_html = (
+            f'<div class="candidate-profile-summary">{escape(summary)}</div>'
+            f'<div class="candidate-profile-grid">{"".join(field for field in fields if field)}</div>'
+        )
     return f"""
     <div class="card hero-card candidate-card {tone}">
         <div class="candidate-photo-wrap">{image_html}</div>
@@ -1316,6 +1515,39 @@ def candidate_card(row: pd.Series, compact: bool = False) -> str:
             <div class="metric-label" style="margin-top:10px;">주요 연관 키워드</div>
             {keyword_html}
         </div>
+        {profile_html}
+    </div>
+    """
+
+
+def candidate_observed_issue_panel(row: pd.Series, issue_summary: pd.DataFrame) -> str:
+    candidate = str(row["candidate"])
+    tone = "blue" if candidate == "정원오" else "red"
+    issues = _pipe_items(row.get("persistent_issues"), 5)
+    if not issues:
+        return ""
+    indexed = issue_summary.set_index("issue") if not issue_summary.empty else pd.DataFrame()
+    rows = []
+    for issue in issues:
+        if issue in indexed.index:
+            share = float(indexed.loc[issue, f"{candidate}_share"])
+            count = int(indexed.loc[issue, candidate])
+            count_text = f"{format_number(count)}건"
+        else:
+            share = 0.0
+            count_text = "0건"
+        rows.append(
+            '<div class="observed-issue-item">'
+            f"<div>{escape(issue)}</div>"
+            f'<div class="observed-issue-track"><div class="observed-issue-fill" style="--share:{share:.1f}%;"></div></div>'
+            f"<div>{share:.1f}% · {count_text}</div>"
+            "</div>"
+        )
+    return f"""
+    <div class="observed-issue-panel {tone}">
+        <div class="observed-issue-title">{escape(candidate)} 지속 관측 이슈</div>
+        <div class="observed-issue-grid">{"".join(rows)}</div>
+        <div class="table-note">선택 기간 동안 반복적으로 관측되는 공개 온라인 반응 쟁점입니다. 후보 선호도나 선거 예측 지표가 아닙니다.</div>
     </div>
     """
 
@@ -1486,6 +1718,37 @@ def collection_status_card(status: dict, context: dict, title: str = "데이터 
         <div class="table-note" style="margin-top:10px;">{escape(note_text)}</div>
     </div>
     """
+
+
+def data_ethics_footer(context: dict) -> None:
+    range_text = escape(str(context.get("range_text", "선택 기간")))
+    html = f"""
+    <div class="ethics-footer">
+        <div class="section-title" style="margin-top:0">
+            <h2>데이터·윤리 안내</h2>
+            <span>{range_text} 기준 · 공개 온라인 반응 데모 화면</span>
+        </div>
+        <div class="ethics-footer-grid">
+            <div class="ethics-footer-item">
+                <h3>데이터 성격</h3>
+                <p>현재 수치는 실제 수집 DB가 아니라 공개 단서 기반 mock/seed data입니다. 실제 지지율·득표율·선거 결과 예측으로 해석하지 않습니다.</p>
+            </div>
+            <div class="ethics-footer-item">
+                <h3>포함 범위</h3>
+                <p>공개 뉴스, 공개 영상·게시글, 공개 댓글, 공개 커뮤니티/X 반응을 가정합니다. 비공개 계정, 비공개 카페, 실제 여론조사는 제외합니다.</p>
+            </div>
+            <div class="ethics-footer-item">
+                <h3>분류 원칙</h3>
+                <p>반응 분위기는 공개 텍스트를 우호 표현, 중립 표현, 비판 표현으로 나눈 데모 분류입니다. 풍자, 중의적 표현, 반복 게시물은 오분류 가능성이 있습니다.</p>
+            </div>
+            <div class="ethics-footer-item">
+                <h3>사용자 유의</h3>
+                <p>후보 비교는 공개 온라인 반응량과 쟁점 흐름을 설명하기 위한 것입니다. 성별·연령·지역 유권자 분포, 당선 가능성, 득표율 예측은 제공하지 않습니다.</p>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_change_table(frame: pd.DataFrame, limit: int = 7) -> None:
