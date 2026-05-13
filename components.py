@@ -119,7 +119,7 @@ def inject_css() -> None:
         }}
 
         .sidebar-brand {{
-            height: 116px;
+            height: 150px;
             display: grid;
             align-content: start;
             gap: 10px;
@@ -128,24 +128,33 @@ def inject_css() -> None:
             margin-bottom: 0.85rem;
         }}
 
-        .sidebar-logo-card {{
+        .sidebar-title-card {{
             width: 100%;
-            height: 88px;
+            min-height: 116px;
             border-radius: 18px;
             display: grid;
-            place-items: center;
-            border: 1px solid rgba(147, 197, 253, 0.28);
-            background: #ffffff;
+            align-content: center;
+            gap: 8px;
+            padding: 14px 12px;
+            border: 1px solid rgba(147, 197, 253, 0.30);
+            background: linear-gradient(145deg, rgba(37, 99, 235, 0.18), rgba(15, 23, 42, 0.12));
             box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
-            overflow: hidden;
         }}
 
-        .sidebar-logo-card img {{
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            padding: 6px;
-            display: block;
+        .sidebar-title-main {{
+            color: #f8fbff;
+            font-size: 19px;
+            line-height: 1.28;
+            font-weight: 930;
+            word-break: keep-all;
+        }}
+
+        .sidebar-title-sub {{
+            color: rgba(226, 232, 240, 0.74);
+            font-size: 10px;
+            line-height: 1.3;
+            font-weight: 760;
+            word-break: keep-all;
         }}
 
         .sidebar-title {{
@@ -216,6 +225,34 @@ def inject_css() -> None:
             color: var(--muted);
             font-size: 15px;
             font-weight: 620;
+        }}
+
+        .header-logo-panel {{
+            width: min(100%, 640px);
+            height: 178px;
+            border-radius: 24px;
+            display: grid;
+            place-items: center;
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(219, 229, 242, 0.76);
+            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.06);
+            overflow: hidden;
+        }}
+
+        .header-logo-panel img {{
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 10px 18px;
+            opacity: 0.94;
+            display: block;
+        }}
+
+        .header-logo-caption {{
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 680;
         }}
 
         .top-note, .election-card {{
@@ -1043,13 +1080,14 @@ def page_url(page: str, issue: str | None = None) -> str:
 
 
 def render_sidebar(page: str) -> None:
-    logo_uri = image_data_uri(BRAND_LOGO)
-    logo_html = f'<img src="{logo_uri}" alt="Seoul Online Issue Radar logo" />' if logo_uri else '<div class="sidebar-title">서울 여론모니터</div>'
     st.markdown(
         f"""
         <aside class="app-sidebar">
             <div class="sidebar-brand">
-                <div class="sidebar-logo-card">{logo_html}</div>
+                <div class="sidebar-title-card">
+                    <div class="sidebar-title-main">서울시장 선거<br/>여론 모니터</div>
+                    <div class="sidebar-title-sub">공개 온라인 반응<br/>대시보드</div>
+                </div>
             </div>
             <div class="sidebar-footer">
                 서울특별시<br/>여론 모니터링 서비스<br/>Ver. 1.0.0
@@ -1061,6 +1099,8 @@ def render_sidebar(page: str) -> None:
 
 
 def render_header(page: str) -> None:
+    logo_uri = image_data_uri(BRAND_LOGO)
+    logo_html = f'<img src="{logo_uri}" alt="Seoul Online Issue Radar logo" />' if logo_uri else '<h1>서울시장 선거 여론 모니터</h1>'
     tabs = [
         ("종합 요약", "home"),
         ("쟁점 상세 분석", "candidate"),
@@ -1075,8 +1115,8 @@ def render_header(page: str) -> None:
         f"""
         <div class="top-header">
             <div class="title-wrap">
-                <h1>서울시장 선거 여론 모니터</h1>
-                <p>공개 온라인 반응으로 보는 두 후보 비교와 주요 쟁점 흐름</p>
+                <div class="header-logo-panel">{logo_html}</div>
+                <div class="header-logo-caption">공개 온라인 반응으로 보는 두 후보 비교와 주요 쟁점 흐름</div>
             </div>
             <div class="top-note">
                 <div class="note-icon">i</div>
