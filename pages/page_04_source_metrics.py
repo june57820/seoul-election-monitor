@@ -52,13 +52,16 @@ def _mood_timeseries(period_key: str, issue: str, source: str) -> None:
         )
         .sort_values("date")
     )
+    mood_total = grouped[["favorable_count", "neutral_count", "critical_count"]].sum(axis=1).replace(0, 1)
+    grouped["favorable_ratio"] = grouped["favorable_count"] / mood_total * 100
+    grouped["neutral_ratio"] = grouped["neutral_count"] / mood_total * 100
+    grouped["critical_ratio"] = grouped["critical_count"] / mood_total * 100
     fig = go.Figure()
     mapping = [
-        ("우호 표현", "favorable_count", "#22c55e"),
-        ("중립 표현", "neutral_count", "#94a3b8"),
-        ("비판 표현", "critical_count", "#ef3340"),
+        ("우호 표현", "favorable_ratio", "#22c55e"),
+        ("중립 표현", "neutral_ratio", "#94a3b8"),
+        ("비판 표현", "critical_ratio", "#ef3340"),
     ]
-    y_max = max(1, int(grouped[["favorable_count", "neutral_count", "critical_count"]].max().max()))
     chart_cols = st.columns(2, gap="medium")
     for chart_col, candidate in zip(chart_cols, CANDIDATE_ORDER):
         data = grouped[grouped["candidate"].eq(candidate)]
@@ -72,10 +75,10 @@ def _mood_timeseries(period_key: str, issue: str, source: str) -> None:
                     mode="lines+markers",
                     line=dict(color=color, width=3),
                     marker=dict(size=7, color=color),
-                    hovertemplate="%{x|%Y.%m.%d}<br>" + candidate + " " + label + ": %{y:,}건<extra></extra>",
+                    hovertemplate="%{x|%Y.%m.%d}<br>" + candidate + " " + label + ": %{y:.1f}%<extra></extra>",
                 )
             )
-        fig.update_yaxes(tickformat=",", title="표현 수", range=[0, y_max * 1.15])
+        fig.update_yaxes(tickformat=".0f", ticksuffix="%", title="구성비", range=[0, 100])
         fig.update_xaxes(title=None)
         with chart_col:
             tone = "blue" if candidate == "정원오" else "red"
