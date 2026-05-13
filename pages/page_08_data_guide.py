@@ -34,8 +34,8 @@ def render(data: dict, period_key: str, context: dict) -> None:
             <div class="card">
                 <div class="section-title" style="margin-top:0"><h2>제외 항목</h2></div>
                 <ul style="margin:0; padding-left:18px; line-height:1.85;">
-                    <li>실제 지지율, 득표율 예측, 당선 가능성</li>
-                    <li>선거 결과 예측</li>
+                    <li>선거 결과형 지표</li>
+                    <li>후보 선호도처럼 보이는 예측성 수치</li>
                     <li>성별·연령대·기기별 클릭 비율</li>
                     <li>지역별 유권자 분포</li>
                     <li>근거가 부족한 이슈 확산 경로 시각화</li>

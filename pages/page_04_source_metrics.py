@@ -108,7 +108,7 @@ def _data_method_card(period_key: str, context: dict) -> None:
             </ul>
             <div class="note-card" style="margin-top:14px;">
                 반응 분위기 분석은 공개 텍스트를 우호 표현, 중립 표현, 비판 표현으로 분류한 데모 결과입니다.
-                실제 여론조사나 선거 결과 예측이 아닙니다.
+                공개 온라인 반응 데모용 seed data 기준입니다.
             </div>
         </div>
         """,
@@ -157,5 +157,5 @@ def render(data: dict, period_key: str, context: dict) -> None:
         st.write(
             "본 화면은 공개 온라인 반응 데이터의 흐름을 설명하기 위한 데모입니다. "
             "근거 샘플은 mock data이며 실제 외부 원문 링크를 제공하지 않습니다. "
-            "성별, 연령대, 지역별 유권자 분포, 실제 지지율, 득표율 예측, 당선 가능성은 포함하지 않습니다."
+            "성별, 연령대, 지역별 유권자 분포와 선거 결과형 지표는 포함하지 않습니다."
         )

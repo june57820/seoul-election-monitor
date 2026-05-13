@@ -140,7 +140,7 @@ def _surge_card(period_key: str, issue: str, source: str) -> None:
         '<table class="html-table">'
         '<thead><tr><th>후보</th><th>급등일</th><th class="num">반응량</th><th class="num">전일 대비</th></tr></thead>'
         f'<tbody>{"".join(rows)}</tbody></table>'
-        '<div class="table-note">월·일 중심으로 표시하며, 실제 지지율 급등이 아닙니다.</div>'
+        '<div class="table-note">월·일 중심으로 표시하며, 공개 온라인 반응 데모용 급등 지표입니다.</div>'
         '</div>'
     )
     st.markdown(html, unsafe_allow_html=True)
@@ -164,7 +164,7 @@ def _ai_summary(period_key: str, issue: str, source: str) -> None:
             </div>
             <div class="insight-body" style="text-align:left;">
                 {leader} 후보는 {keywords} 관련 키워드에서 반응이 집중되었고, {other} 후보도 같은 기간 관련 반응이 함께 관측됩니다.
-                이 문장은 데모 데이터 기반 보조 요약이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다.
+                이 문장은 공개 온라인 반응 데모용 seed data 기반 보조 요약입니다.
             </div>
         </div>
         """,
@@ -247,7 +247,7 @@ def render(data: dict, period_key: str, context: dict) -> None:
 
     top_left, top_right = st.columns([0.86, 1.14], gap="large")
     with top_left:
-        ui.section_title("쟁점별 반응 점유율", "지지율이 아닌 공개 온라인 반응 비중")
+        ui.section_title("쟁점별 공개 온라인 반응 비중", "선택 기간의 공개 온라인 반응 기준")
         ui.issue_selector(issue_summary, selected_issue, page="candidate")
     with top_right:
         keywords = get_keyword_summary(period_key)

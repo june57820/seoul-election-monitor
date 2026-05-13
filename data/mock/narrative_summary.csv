@@ -1,2 +1,2 @@
-﻿period_type,headline_text,summary_text,reliability_text
-7d,공개 온라인 반응 기준으로 교통·주거·한강 쟁점이 최근 기간의 핵심 흐름을 만들었습니다.,"선택 쟁점과 출처 필터에 따라 시계열, 반응 분위기, 근거 샘플이 함께 갱신됩니다.",실제 지지율·득표율·선거 결과 예측이 아닙니다.
+﻿period_type,headline_text,summary_text,reliability_text,data_type
+7d,공개 온라인 반응 기준으로 교통·주거·도시개발 쟁점이 최근 기간의 핵심 흐름을 만들었습니다.,"선택 쟁점과 출처 필터에 따라 시계열, 반응 분위기, 근거 샘플이 함께 갱신됩니다.",이 수치는 실제 지지율·득표율·선거 결과 예측이 아니라 공개 온라인 반응 데모용 수치입니다.,public_online_reaction_demo_seed

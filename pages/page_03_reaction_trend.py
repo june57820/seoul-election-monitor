@@ -178,4 +178,4 @@ def render(data: dict, period_key: str, context: dict) -> None:
         ui.section_title("출처별 시계열 비교", "전체 기간 변화")
         _source_timeseries(period_key, source)
 
-    st.caption("출처별 수치는 공개 온라인 반응 기준이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다.")
+    st.caption("출처별 수치는 공개 온라인 반응 데모용 seed data 기준입니다.")

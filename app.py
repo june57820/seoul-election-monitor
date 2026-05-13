@@ -29,6 +29,7 @@ ROUTES = {
 REQUIRED_DATA = [
     "candidates.csv",
     "candidate_channels.csv",
+    "candidate_period_summary.csv",
     "reaction_timeseries.csv",
     "issue_summary.csv",
     "issue_detail_timeseries.csv",

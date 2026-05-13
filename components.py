@@ -1056,12 +1056,13 @@ def demo_notice() -> None:
 def metric_explainer(compact: bool = False) -> None:
     body = (
         "반응량은 선택 기간에 관측된 공개 온라인 반응 건수입니다. "
-        "반응점수는 반응량, 출처별 관측치, 우호·중립·비판 표현 구성을 0-100 범위로 정규화한 데모 지표이며 실제 지지율이 아닙니다."
+        "반응점수는 공개 온라인 반응량, 출처 다양성, 이슈 집중도, 최근 급등성을 합성한 데모 지표입니다. "
+        "실제 지지율이나 선거 예측 지표가 아닙니다."
     )
     if compact:
         body = (
-            "반응량은 공개 온라인 반응 건수, 반응점수는 반응량과 반응 분위기를 0-100 범위로 정규화한 데모 지표입니다. "
-            "실제 지지율이 아닙니다."
+            "반응량은 공개 온라인 반응 건수입니다. 반응점수는 공개 온라인 반응량, 출처 다양성, 이슈 집중도, 최근 급등성을 합성한 데모 지표입니다. "
+            "실제 지지율이나 선거 예측 지표가 아닙니다."
         )
     st.markdown(f'<div class="note-card">{body}</div>', unsafe_allow_html=True)
 
@@ -1129,17 +1130,17 @@ def issue_insight(issue: str, issue_summary: pd.DataFrame) -> str:
         title = f"{issue} 쟁점에서 두 후보의 공개 온라인 반응 비중이 유사합니다."
         stance = "양측 유사"
     elif jwo > osh:
-        title = f"{issue} 쟁점에서 정원오 후보의 공개 온라인 반응이 앞서고 있습니다."
-        stance = "정원오 우세"
+        title = f"{issue} 쟁점에서 정원오 후보가 공개 온라인 반응량 기준 상대적으로 많이 언급됩니다."
+        stance = "정원오 상대 언급 많음"
     else:
-        title = f"{issue} 쟁점에서 오세훈 후보의 공개 온라인 반응이 앞서고 있습니다."
-        stance = "오세훈 우세"
+        title = f"{issue} 쟁점에서 오세훈 후보가 공개 온라인 반응량 기준 상대적으로 많이 언급됩니다."
+        stance = "오세훈 상대 언급 많음"
     return f"""
     <div class="card insight-card">
         <div class="insight-kicker">현재 쟁점: {escape(issue)}</div>
         <div class="insight-title">{escape(title)}</div>
         <div class="insight-body">
-            이 표현은 공개 온라인 반응량 기준의 비교이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다.
+            {DEMO_WARNING}
         </div>
         <div class="chip-row" style="justify-content:center;"><span class="chip blue">정원오 {jwo:.1f}%</span><span class="chip red">오세훈 {osh:.1f}%</span><span class="chip gray">{escape(stance)}</span></div>
     </div>

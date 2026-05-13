@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data" / "mock"
 ASSET_DIR = BASE_DIR / "assets" / "images"
 
-DEMO_WARNING = "본 대시보드는 공개 온라인 반응을 수집·분석한 데모 화면이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다."
+DEMO_WARNING = "이 수치는 실제 지지율·득표율·선거 결과 예측이 아니라 공개 온라인 반응 데모용 수치입니다."
 DATA_START = pd.Timestamp("2026-01-01")
 DATA_END = pd.Timestamp("2026-05-12")
 
@@ -56,6 +56,7 @@ def load_data(data_dir: str | Path | None = None) -> dict[str, pd.DataFrame]:
     files = {
         "candidates": ("candidates.csv", []),
         "candidate_channels": ("candidate_channels.csv", []),
+        "candidate_period_summary": ("candidate_period_summary.csv", ["period_start", "period_end"]),
         "reaction_timeseries": ("reaction_timeseries.csv", ["date"]),
         "issue_summary": ("issue_summary.csv", []),
         "issue_detail_timeseries": ("issue_detail_timeseries.csv", ["date"]),
@@ -151,23 +152,13 @@ def filter_period(data: dict[str, pd.DataFrame], period_key: str) -> dict[str, p
 
 def get_candidate_summary(period_key: str) -> pd.DataFrame:
     frames = load_data()
-    detail = frames["issue_detail_timeseries"].loc[_period_mask(frames["issue_detail_timeseries"], period_key)].copy()
-    daily = (
-        detail.groupby(["date", "candidate"], as_index=False)
-        .agg(
-            reaction_count=("reaction_count", "sum"),
-            reaction_score=("reaction_score", "mean"),
-            content_count=("content_count", "sum"),
-            comment_count=("comment_count", "sum"),
-        )
-        .round({"reaction_score": 1})
-    )
+    daily = frames["reaction_timeseries"].loc[_period_mask(frames["reaction_timeseries"], period_key)].copy()
 
     summary = (
         daily.groupby("candidate", as_index=False)
         .agg(
             reaction_count=("reaction_count", "sum"),
-            mention_count=("reaction_count", lambda value: int(value.sum() * 0.58)),
+            mention_count=("reaction_count", "sum"),
             content_count=("content_count", "sum"),
             comment_count=("comment_count", "sum"),
             reaction_score=("reaction_score", "mean"),
@@ -184,6 +175,17 @@ def get_candidate_summary(period_key: str) -> pd.DataFrame:
     summary = summary.merge(pd.DataFrame(changes), on="candidate", how="left")
     summary = frames["candidates"].merge(summary, on="candidate", how="left")
 
+    period_summary = frames.get("candidate_period_summary", pd.DataFrame())
+    if not period_summary.empty:
+        ctx = period_context(period_key, frames)
+        period_rows = period_summary[
+            period_summary["period_start"].dt.normalize().eq(ctx["start"].normalize())
+            & period_summary["period_end"].dt.normalize().eq(ctx["end"].normalize())
+        ][["candidate", "reaction_score", "period_change", "mention_count", "basis", "confidence"]]
+        if not period_rows.empty:
+            summary = summary.drop(columns=["reaction_score", "period_change", "mention_count"], errors="ignore")
+            summary = summary.merge(period_rows, on="candidate", how="left")
+
     keywords = get_keyword_summary(period_key)
     top_keyword_map = (
         keywords.sort_values(["candidate", "mention_count"], ascending=[True, False])
@@ -198,12 +200,19 @@ def get_candidate_summary(period_key: str) -> pd.DataFrame:
 
 def get_reaction_timeseries(period_key: str, candidate: str = "전체", source: str = "전체", metric: str = "반응량") -> pd.DataFrame:
     frames = load_data()
+    if source == "전체":
+        grouped = frames["reaction_timeseries"].loc[_period_mask(frames["reaction_timeseries"], period_key)].copy()
+        if candidate != "전체":
+            grouped = grouped[grouped["candidate"].eq(candidate)]
+        grouped = grouped.sort_values(["candidate", "date"])
+        grouped["daily_change"] = grouped.groupby("candidate")["reaction_count"].pct_change().fillna(0).mul(100).round(1)
+        grouped["metric_value"] = _metric_value(grouped, metric)
+        return grouped
+
     detail = frames["issue_detail_timeseries"].loc[_period_mask(frames["issue_detail_timeseries"], period_key)].copy()
     if candidate != "전체":
         detail = detail[detail["candidate"].eq(candidate)]
-    if source != "전체":
-        detail = detail[detail["source"].eq(source)]
-
+    detail = detail[detail["source"].eq(source)]
     grouped = (
         detail.groupby(["date", "candidate"], as_index=False)
         .agg(
@@ -384,15 +393,14 @@ def get_source_timeseries(period_key: str, issue: str | None = None, source: str
 
 def get_keyword_summary(period_key: str, issue: str | None = None) -> pd.DataFrame:
     frames = load_data()
+    ctx = period_context(period_key, frames)
     detail = frames["issue_detail_timeseries"].loc[_period_mask(frames["issue_detail_timeseries"], period_key)].copy()
     issues = [issue] if issue else detail["issue"].drop_duplicates().tolist()
     keywords = frames["keyword_summary"]
     keywords = keywords[keywords["issue"].isin(issues)].copy()
-    scale = (
-        detail.groupby(["issue", "candidate"], as_index=False)["reaction_count"].sum().rename(columns={"reaction_count": "period_reactions"})
-    )
-    keywords = keywords.merge(scale, on=["issue", "candidate"], how="left")
-    keywords["mention_count"] = (keywords["mention_count"] * (keywords["period_reactions"] / keywords["period_reactions"].max()).fillna(0.5) * 1.65).astype(int)
+    if not (ctx["start"].date().isoformat() == "2026-05-06" and ctx["end"].date().isoformat() == "2026-05-12"):
+        factor = max(0.25, min(5.4, ctx["days"] / 7))
+        keywords["mention_count"] = (keywords["mention_count"] * factor).round().astype(int)
     return keywords.sort_values(["candidate", "mention_count"], ascending=[True, False])
 
 
@@ -434,8 +442,8 @@ def get_collection_status(period_key: str | None = None) -> dict[str, Any]:
         }
     row = status.iloc[0].to_dict()
     if period_key:
-        detail = frames["issue_detail_timeseries"].loc[_period_mask(frames["issue_detail_timeseries"], period_key)]
-        row["total_items"] = int(detail["reaction_count"].sum())
+        reaction = frames["reaction_timeseries"].loc[_period_mask(frames["reaction_timeseries"], period_key)]
+        row["total_items"] = int(reaction["reaction_count"].sum())
     return row
 
 

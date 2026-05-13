@@ -1,2 +1,2 @@
-﻿updated_at,latest_date,collection_status,total_items,source_scope,warning_text
-2026-05-12 10:00,2026-05-12,정상 수집 중,7307887,"뉴스, 영상·게시글, 댓글, 커뮤니티/X","본 대시보드는 공개 온라인 반응을 수집·분석한 데모 화면이며, 실제 지지율·득표율·선거 결과 예측이 아닙니다."
+﻿updated_at,latest_date,collection_status,total_items,source_scope,period_start,period_end,election_date,d_day,data_type,warning_text
+2026-05-13T00:00:00+09:00,2026-05-12,mock_seed_from_public_clues,45300,"공개 뉴스, 공개 영상·게시글, 공개 댓글, 공개 커뮤니티/X 검색 흔적. 비공개 계정·비공개 카페·실제 여론조사 제외",2026-05-06,2026-05-12,2026-06-03,22,public_online_reaction_demo_seed,이 수치는 실제 지지율·득표율·선거 결과 예측이 아니라 공개 온라인 반응 데모용 수치입니다.
