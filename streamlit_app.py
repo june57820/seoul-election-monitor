@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-APP_BUILD_STAMP = "2026-05-13-banner-logo-v19"
+APP_BUILD_STAMP = "2026-05-13-profile-summary-v20"
 
 
 if getattr(builtins, "_seoul_monitor_build_stamp", None) != APP_BUILD_STAMP:

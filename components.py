@@ -517,11 +517,17 @@ def inject_css() -> None:
         }}
 
         .candidate-profile-summary {{
+            grid-column: 1 / -1;
             color: #475569;
-            font-size: 12px;
-            line-height: 1.5;
-            font-weight: 700;
-            margin: 8px 0 4px;
+            font-size: 13px;
+            line-height: 1.55;
+            font-weight: 760;
+            margin: 12px 0 2px;
+            padding: 10px 12px;
+            border: 1px solid rgba(203, 213, 225, 0.68);
+            border-radius: 12px;
+            background: rgba(248, 251, 255, 0.72);
+            word-break: keep-all;
         }}
 
         .candidate-profile-grid {{
