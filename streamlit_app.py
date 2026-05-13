@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-APP_BUILD_STAMP = "2026-05-13-period-change-copy-v4"
+APP_BUILD_STAMP = "2026-05-13-keyword-timeseries-v5"
 
 
 if getattr(builtins, "_seoul_monitor_build_stamp", None) != APP_BUILD_STAMP:

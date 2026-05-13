@@ -1265,6 +1265,38 @@ def render_change_table(frame: pd.DataFrame, limit: int = 7) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
+def render_keyword_timeseries_table(frame: pd.DataFrame, keyword: str, limit: int = 60) -> None:
+    if frame.empty:
+        notice(f"'{keyword}' 키워드에 해당하는 데모 시계열이 없습니다. 다른 연관 키워드로 다시 확인해 주세요.", "warning")
+        return
+
+    display = frame.copy()
+    display["candidate_order"] = display["candidate"].map({name: idx for idx, name in enumerate(CANDIDATE_ORDER)}).fillna(99)
+    display = display.sort_values(["date", "candidate_order"]).tail(limit)
+    rows = []
+    for _, row in display.iterrows():
+        tone = "blue" if row["candidate"] == "정원오" else "red"
+        rows.append(
+            f'<tr><td>{short_date_text(row["date"])}</td>'
+            f'<td><span class="badge {tone}">{escape(str(row["candidate"]))}</span></td>'
+            f'<td class="num {tone}-text">{format_number(row["keyword_mention_count"])}</td>'
+            f'<td class="num green-text">{format_number(row["favorable_count"])} / {row["favorable_ratio"]:.1f}%</td>'
+            f'<td class="num muted-text">{format_number(row["neutral_count"])} / {row["neutral_ratio"]:.1f}%</td>'
+            f'<td class="num red-text">{format_number(row["critical_count"])} / {row["critical_ratio"]:.1f}%</td>'
+            f'<td class="num">{format_percent(row["daily_change"], signed=True)}</td>'
+            f'<td>{escape(str(row["matched_keywords"]))}</td></tr>'
+        )
+    html = (
+        '<table class="html-table"><thead><tr>'
+        '<th>날짜</th><th>후보</th><th class="num">키워드 언급량</th>'
+        '<th class="num">우호 표현</th><th class="num">중립 표현</th><th class="num">비판 표현</th>'
+        '<th class="num">전일 대비</th><th>매칭 키워드</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+        '<div class="table-note">키워드 언급량과 반응 분위기 수치는 공개 온라인 반응 데모용 seed data에서 추정한 값입니다.</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def reaction_badge(reaction_type: str) -> str:
     tone = {"우호": "green", "중립": "gray", "비판": "orange"}.get(reaction_type, "gray")
     return f'<span class="badge {tone}">{escape(reaction_type)}</span>'

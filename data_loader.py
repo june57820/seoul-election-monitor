@@ -404,6 +404,88 @@ def get_keyword_summary(period_key: str, issue: str | None = None) -> pd.DataFra
     return keywords.sort_values(["candidate", "mention_count"], ascending=[True, False])
 
 
+def get_keyword_timeseries(period_key: str, keyword: str, issue: str | None = None, source: str = "전체") -> pd.DataFrame:
+    query = str(keyword or "").strip()
+    if not query:
+        return pd.DataFrame()
+
+    query_norm = query.casefold()
+    frames = load_data()
+    detail = frames["issue_detail_timeseries"].loc[_period_mask(frames["issue_detail_timeseries"], period_key)].copy()
+    if issue:
+        detail = detail[detail["issue"].eq(issue)]
+    if source != "전체":
+        detail = detail[detail["source"].eq(source)]
+    if detail.empty:
+        return pd.DataFrame()
+
+    keyword_summary = get_keyword_summary(period_key, issue)
+    keyword_text = keyword_summary["keyword"].astype(str).str.casefold()
+    matched_keywords = keyword_summary[
+        keyword_text.str.contains(query_norm, regex=False) | keyword_text.map(lambda value: query_norm in value or value in query_norm)
+    ].copy()
+
+    rows: list[pd.DataFrame] = []
+    for (row_issue, candidate), group in detail.groupby(["issue", "candidate"]):
+        group = group.copy()
+        direct_mask = group["top_keywords"].astype(str).str.casefold().str.contains(query_norm, regex=False, na=False)
+        keyword_rows = matched_keywords[matched_keywords["issue"].eq(row_issue) & matched_keywords["candidate"].eq(candidate)]
+
+        if not keyword_rows.empty:
+            eligible = group
+            matched_label = ", ".join(keyword_rows["keyword"].astype(str).drop_duplicates().head(4))
+            target_mentions = float(keyword_rows["mention_count"].sum())
+        elif direct_mask.any():
+            eligible = group.loc[direct_mask].copy()
+            matched_label = query
+            target_mentions = float(eligible["reaction_count"].sum() * 0.32)
+        else:
+            continue
+
+        total_reactions = float(max(1, eligible["reaction_count"].sum()))
+        target_mentions = min(target_mentions, total_reactions * 0.9)
+        eligible["keyword"] = query
+        eligible["matched_keywords"] = matched_label
+        eligible["keyword_mention_count"] = (eligible["reaction_count"] / total_reactions * target_mentions).round().astype(int)
+        ratio = (eligible["keyword_mention_count"] / eligible["reaction_count"].replace(0, pd.NA)).fillna(0)
+        eligible["keyword_favorable_count"] = (eligible["favorable_count"] * ratio).round().astype(int)
+        eligible["keyword_neutral_count"] = (eligible["neutral_count"] * ratio).round().astype(int)
+        eligible["keyword_critical_count"] = (
+            eligible["keyword_mention_count"] - eligible["keyword_favorable_count"] - eligible["keyword_neutral_count"]
+        ).clip(lower=0)
+        rows.append(eligible)
+
+    if not rows:
+        return pd.DataFrame()
+
+    result = pd.concat(rows, ignore_index=True)
+    grouped = (
+        result.groupby(["date", "candidate"], as_index=False)
+        .agg(
+            keyword_mention_count=("keyword_mention_count", "sum"),
+            favorable_count=("keyword_favorable_count", "sum"),
+            neutral_count=("keyword_neutral_count", "sum"),
+            critical_count=("keyword_critical_count", "sum"),
+            matched_keywords=("matched_keywords", lambda values: ", ".join(sorted(set(values)))[:80]),
+        )
+        .sort_values(["candidate", "date"])
+    )
+    all_dates = sorted(detail["date"].drop_duplicates())
+    index = pd.MultiIndex.from_product([all_dates, CANDIDATE_ORDER], names=["date", "candidate"])
+    grouped = grouped.set_index(["date", "candidate"]).reindex(index).reset_index()
+    fill_columns = ["keyword_mention_count", "favorable_count", "neutral_count", "critical_count"]
+    grouped[fill_columns] = grouped[fill_columns].fillna(0).astype(int)
+    grouped["matched_keywords"] = grouped["matched_keywords"].fillna("-")
+    total = grouped[["favorable_count", "neutral_count", "critical_count"]].sum(axis=1)
+    grouped["favorable_ratio"] = (grouped["favorable_count"] / total * 100).fillna(0).round(1)
+    grouped["neutral_ratio"] = (grouped["neutral_count"] / total * 100).fillna(0).round(1)
+    grouped["critical_ratio"] = (grouped["critical_count"] / total * 100).fillna(0).round(1)
+    grouped = grouped.sort_values(["candidate", "date"])
+    daily_change = grouped.groupby("candidate")["keyword_mention_count"].pct_change()
+    grouped["daily_change"] = daily_change.replace([float("inf"), float("-inf")], 0).fillna(0).mul(100).round(1)
+    return grouped
+
+
 def get_evidence_samples(
     period_key: str,
     issue: str | None = None,

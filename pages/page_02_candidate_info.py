@@ -18,6 +18,7 @@ from data_loader import (
     get_issue_mood_timeseries,
     get_issue_summary,
     get_keyword_summary,
+    get_keyword_timeseries,
     get_source_summary,
     get_source_timeseries,
     short_date_text,
@@ -292,6 +293,30 @@ def render(data: dict, period_key: str, context: dict) -> None:
     with rank_right:
         st.markdown('<div class="mini-kpi-title red-text">오세훈</div>', unsafe_allow_html=True)
         ui.render_keyword_rank_table(issue_keywords, "오세훈")
+
+    ui.section_title("키워드별 시계열 추이", "직접 입력한 키워드 기준 후보별 언급량과 우호·중립·비판 표현 변화")
+    keyword_options = issue_keywords.sort_values("mention_count", ascending=False)["keyword"].drop_duplicates().tolist()
+    if keyword_options and "selected_keyword_filter_text" not in st.session_state:
+        st.session_state.selected_keyword_filter_text = keyword_options[0]
+    key_cols = st.columns([0.34, 0.42, 0.24], gap="small")
+    with key_cols[0]:
+        selected_keyword_option = st.selectbox("추천 키워드", keyword_options or ["교통"], key="selected_keyword_filter_option")
+        if selected_keyword_option and selected_keyword_option != st.session_state.get("_selected_keyword_filter_option"):
+            st.session_state.selected_keyword_filter_text = selected_keyword_option
+            st.session_state._selected_keyword_filter_option = selected_keyword_option
+    with key_cols[1]:
+        keyword_query = st.text_input(
+            "분석 키워드",
+            key="selected_keyword_filter_text",
+            placeholder="예: 30분 통근, 한강버스, 31만호",
+        ).strip()
+    with key_cols[2]:
+        st.markdown(
+            f'<div class="table-note" style="margin-top:31px;">{selected_issue} · {source_label} · {context["label"]} 기준</div>',
+            unsafe_allow_html=True,
+        )
+    keyword_trend = get_keyword_timeseries(period_key, keyword_query, issue=selected_issue, source=source)
+    ui.render_keyword_timeseries_table(keyword_trend, keyword_query, limit=min(max(context["days"] * 2, 14), 80))
 
     ui.section_title("근거 샘플", "현재 선택 쟁점·출처·기간 기준")
     candidate, reaction_type, sort = ui.selected_evidence_filters()
