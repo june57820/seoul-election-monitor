@@ -131,7 +131,7 @@ def _evidence_context_label(period_key: str, issue: str, source: str) -> None:
 
 
 def render(data: dict, period_key: str, context: dict) -> None:
-    ui.section_title("반응·근거", "반응 분위기 분석과 mock 근거 샘플")
+    ui.section_title("반응 분위기·근거", "반응 분위기 분석과 mock 근거 샘플")
 
     issue, source = _context_filters()
     _evidence_context_label(period_key, issue, source)

@@ -156,7 +156,7 @@ def _source_timeseries(period_key: str, source: str) -> None:
 
 
 def render(data: dict, period_key: str, context: dict) -> None:
-    ui.section_title("추이·출처", "전체 공개 온라인 반응 흐름과 출처별 변화")
+    ui.section_title("전체 흐름·출처", "전체 공개 온라인 반응 흐름과 출처별 변화")
 
     candidate, source, metric = _trend_filters()
     ui.metric_explainer(compact=True)

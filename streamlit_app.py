@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-APP_BUILD_STAMP = "2026-05-13-mood-percent-tooltip-v9"
+APP_BUILD_STAMP = "2026-05-13-page-labels-v10"
 
 
 if getattr(builtins, "_seoul_monitor_build_stamp", None) != APP_BUILD_STAMP:

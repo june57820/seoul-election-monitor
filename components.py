@@ -1047,7 +1047,7 @@ def render_sidebar(page: str) -> None:
 
 
 def render_header(page: str) -> None:
-    tabs = [("개요", "home"), ("후보·쟁점", "candidate"), ("추이·출처", "trend"), ("반응·근거", "evidence")]
+    tabs = [("종합 요약", "home"), ("쟁점 상세 분석", "candidate"), ("전체 흐름·출처", "trend"), ("반응 분위기·근거", "evidence")]
     tab_html = "".join(
         f'<a class="tab-link{" active" if page == key else ""}" href="{page_url(key)}" target="_self">{label}</a>' for label, key in tabs
     )
