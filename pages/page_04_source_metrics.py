@@ -58,25 +58,29 @@ def _mood_timeseries(period_key: str, issue: str, source: str) -> None:
         ("중립 표현", "neutral_count", "#94a3b8"),
         ("비판 표현", "critical_count", "#ef3340"),
     ]
-    for candidate in CANDIDATE_ORDER:
+    y_max = max(1, int(grouped[["favorable_count", "neutral_count", "critical_count"]].max().max()))
+    chart_cols = st.columns(2, gap="medium")
+    for chart_col, candidate in zip(chart_cols, CANDIDATE_ORDER):
         data = grouped[grouped["candidate"].eq(candidate)]
-        dash = "solid" if candidate == "정원오" else "dash"
-        symbol = "circle" if candidate == "정원오" else "diamond"
+        fig = go.Figure()
         for label, column, color in mapping:
             fig.add_trace(
                 go.Scatter(
                     x=data["date"],
                     y=data[column],
-                    name=f"{candidate} {label}",
+                    name=label,
                     mode="lines+markers",
-                    line=dict(color=color, width=3, dash=dash),
-                    marker=dict(size=7, color=color, symbol=symbol),
+                    line=dict(color=color, width=3),
+                    marker=dict(size=7, color=color),
                     hovertemplate="%{x|%Y.%m.%d}<br>" + candidate + " " + label + ": %{y:,}건<extra></extra>",
                 )
             )
-    fig.update_yaxes(tickformat=",", title="표현 수")
-    fig.update_xaxes(title=None)
-    st.plotly_chart(ui.styled_plotly(fig, height=300), width="stretch")
+        fig.update_yaxes(tickformat=",", title="표현 수", range=[0, y_max * 1.15])
+        fig.update_xaxes(title=None)
+        with chart_col:
+            tone = "blue" if candidate == "정원오" else "red"
+            st.markdown(f'<div class="mini-kpi-title {tone}-text">{candidate} 우호·중립·비판 표현 추이</div>', unsafe_allow_html=True)
+            st.plotly_chart(ui.styled_plotly(fig, height=285), width="stretch")
 
 
 def _mood_cards(period_key: str, issue: str, source: str) -> None:
@@ -131,7 +135,7 @@ def render(data: dict, period_key: str, context: dict) -> None:
 
     left, right = st.columns([1.25, 0.75], gap="large")
     with left:
-        ui.section_title("후보별 우호·중립·비판 표현 시계열", f"{issue} · {SOURCE_LABELS.get(source, '전체 출처')}")
+        ui.section_title("후보별 우호·중립·비판 표현 시계열", f"{issue} · {SOURCE_LABELS.get(source, '전체 출처')} · 후보별 개별 그래프")
         _mood_timeseries(period_key, issue, source)
         _mood_cards(period_key, issue, source)
     with right:
