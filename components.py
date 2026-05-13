@@ -726,17 +726,17 @@ def inject_css() -> None:
 
         .cloud-word.active {{
             background: transparent;
-            color: inherit !important;
-            box-shadow: inset 0 -7px rgba(148, 163, 184, 0.22);
-            border-radius: 7px;
+            box-shadow: none;
+            text-decoration: none !important;
+            border-radius: 999px;
         }}
 
         .cloud-word.blue-text.active {{
-            box-shadow: inset 0 -7px rgba(37, 99, 235, 0.16);
+            color: var(--blue-dark) !important;
         }}
 
         .cloud-word.red-text.active {{
-            box-shadow: inset 0 -7px rgba(239, 51, 64, 0.16);
+            color: var(--red-dark) !important;
         }}
 
         .table-note {{
@@ -1120,7 +1120,6 @@ def issue_insight(issue: str, issue_summary: pd.DataFrame) -> str:
         <div class="card insight-card">
             <div class="insight-kicker">현재 쟁점: {escape(issue)}</div>
             <div class="insight-title">선택한 쟁점의 공개 온라인 반응을 확인합니다.</div>
-            <div class="insight-body">{DEMO_WARNING}</div>
         </div>
         """
     data = row.iloc[0]
@@ -1139,9 +1138,6 @@ def issue_insight(issue: str, issue_summary: pd.DataFrame) -> str:
     <div class="card insight-card">
         <div class="insight-kicker">현재 쟁점: {escape(issue)}</div>
         <div class="insight-title">{escape(title)}</div>
-        <div class="insight-body">
-            {DEMO_WARNING}
-        </div>
         <div class="chip-row" style="justify-content:center;"><span class="chip blue">정원오 {jwo:.1f}%</span><span class="chip red">오세훈 {osh:.1f}%</span><span class="chip gray">{escape(stance)}</span></div>
     </div>
     """
