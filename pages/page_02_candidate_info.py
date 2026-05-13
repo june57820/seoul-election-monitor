@@ -225,26 +225,19 @@ def render(data: dict, period_key: str, context: dict) -> None:
     selected_issue = ui.selected_issue_from_query("교통")
     summary = get_candidate_summary(period_key)
     issue_summary = get_issue_summary(period_key)
+    channels = get_candidate_channels()
 
     left, center, right = st.columns([1.05, 0.95, 1.05], gap="medium")
     with left:
         st.markdown(ui.candidate_card(summary[summary["candidate"].eq("정원오")].iloc[0]), unsafe_allow_html=True)
+        st.markdown(ui.official_channel_strip(channels, "정원오"), unsafe_allow_html=True)
     with center:
         st.markdown(ui.issue_insight(selected_issue, issue_summary), unsafe_allow_html=True)
     with right:
         st.markdown(ui.candidate_card(summary[summary["candidate"].eq("오세훈")].iloc[0]), unsafe_allow_html=True)
+        st.markdown(ui.official_channel_strip(channels, "오세훈"), unsafe_allow_html=True)
 
     ui.metric_explainer()
-
-    with st.expander("후보 공식 채널 보기", expanded=False):
-        channels = get_candidate_channels()
-        c1, c2 = st.columns(2, gap="large")
-        with c1:
-            ui.section_title("정원오 공식 채널")
-            ui.official_channel_buttons(channels, "정원오")
-        with c2:
-            ui.section_title("오세훈 공식 채널")
-            ui.official_channel_buttons(channels, "오세훈")
 
     top_left, top_right = st.columns([0.86, 1.14], gap="large")
     with top_left:

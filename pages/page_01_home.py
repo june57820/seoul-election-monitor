@@ -82,25 +82,7 @@ def render(data: dict, period_key: str, context: dict) -> None:
         _overall_trend(period_key)
     with side_col:
         status = get_collection_status(period_key)
-        st.markdown(
-            f"""
-            <div class="card">
-                <div class="section-title" style="margin-top:0"><h2>데이터 현황</h2></div>
-                <div class="mini-kpi">
-                    <div class="mini-kpi-title">수집 상태</div>
-                    <div class="mini-kpi-value green-text" style="font-size:20px;">{status['collection_status']}</div>
-                </div>
-                <div style="display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:12px;">
-                    <div class="metric-label">수집 기간</div><div>{context['range_text']}</div>
-                    <div class="metric-label">마지막 업데이트</div><div>{status['updated_at']}</div>
-                    <div class="metric-label">수집 출처</div><div>{status['source_scope']}</div>
-                    <div class="metric-label">반응량 합계</div><div>{format_number(status['total_items'])}건</div>
-                </div>
-                <div class="table-note">수집 현황은 mock data 기준이며 선택한 분석 기간에 맞춰 갱신됩니다.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown(ui.collection_status_card(status, context), unsafe_allow_html=True)
 
     lower_left, lower_right = st.columns([1.05, 0.95], gap="large")
     with lower_left:

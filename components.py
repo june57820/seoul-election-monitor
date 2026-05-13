@@ -823,6 +823,104 @@ def inject_css() -> None:
             font-variant-numeric: tabular-nums;
         }}
 
+        .data-status-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }}
+
+        .data-status-item {{
+            border: 1px solid var(--line);
+            background: #f8fbff;
+            border-radius: 12px;
+            padding: 11px 12px;
+            min-width: 0;
+        }}
+
+        .data-status-item.wide {{
+            grid-column: 1 / -1;
+        }}
+
+        .data-status-label {{
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 850;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }}
+
+        .data-status-value {{
+            color: var(--ink);
+            font-size: 15px;
+            line-height: 1.45;
+            font-weight: 760;
+            overflow-wrap: anywhere;
+        }}
+
+        .data-status-value.strong {{
+            font-size: 20px;
+            font-weight: 940;
+            font-variant-numeric: tabular-nums;
+        }}
+
+        .status-code {{
+            display: inline-flex;
+            max-width: 100%;
+            border-radius: 999px;
+            padding: 7px 10px;
+            background: #ecfdf3;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }}
+
+        .official-channel-strip {{
+            margin-top: 10px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255,255,255,0.82);
+            padding: 10px 12px;
+        }}
+
+        .official-channel-title {{
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 850;
+            margin-bottom: 7px;
+        }}
+
+        .official-channel-links {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }}
+
+        .official-channel-link {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 28px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #dbe7f5;
+            background: #fff;
+            color: #334155 !important;
+            font-size: 12px;
+            font-weight: 820;
+            line-height: 1;
+            text-decoration: none !important;
+            white-space: nowrap;
+        }}
+
+        .official-channel-link:hover {{
+            border-color: #93c5fd;
+            background: #f8fbff;
+        }}
+
         .stDataFrame {{
             border-radius: 14px;
             overflow: hidden;
@@ -898,6 +996,12 @@ def inject_css() -> None:
             }}
             .html-table th, .html-table td {{
                 padding: 8px 7px;
+            }}
+            .data-status-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .data-status-item.wide {{
+                grid-column: auto;
             }}
         }}
         </style>
@@ -1242,6 +1346,47 @@ def metric_card(title: str, value: str, caption: str = "", tone: str = "") -> st
     )
 
 
+def collection_status_card(status: dict, context: dict, title: str = "데이터 현황", note: str | None = None) -> str:
+    updated_at = pd.to_datetime(status.get("updated_at"), errors="coerce")
+    updated_text = updated_at.strftime("%Y.%m.%d %H:%M") if pd.notna(updated_at) else str(status.get("updated_at", "-"))
+    source_scope = str(status.get("source_scope", "-")).replace("공개 ", "")
+    status_code = str(status.get("collection_status", "-"))
+    status_label = {
+        "mock_seed_from_public_clues": "근거 기반 임시 seed",
+        "public_online_reaction_demo_seed": "공개 온라인 반응 데모 seed",
+    }.get(status_code, status_code.replace("_", " "))
+    note_text = note or "수집 현황은 mock data 기준이며 선택한 분석 기간에 맞춰 갱신됩니다."
+    return f"""
+    <div class="card">
+        <div class="section-title" style="margin-top:0"><h2>{escape(title)}</h2></div>
+        <div class="status-code">{escape(status_label)}</div>
+        <div class="data-status-grid">
+            <div class="data-status-item">
+                <div class="data-status-label">수집 기간</div>
+                <div class="data-status-value">{escape(str(context["range_text"]))}</div>
+            </div>
+            <div class="data-status-item">
+                <div class="data-status-label">반응량 합계</div>
+                <div class="data-status-value strong">{format_number(status.get("total_items", 0))}건</div>
+            </div>
+            <div class="data-status-item">
+                <div class="data-status-label">마지막 업데이트</div>
+                <div class="data-status-value">{escape(updated_text)}</div>
+            </div>
+            <div class="data-status-item">
+                <div class="data-status-label">데이터 기준</div>
+                <div class="data-status-value">공개 온라인 반응</div>
+            </div>
+            <div class="data-status-item wide">
+                <div class="data-status-label">수집 출처</div>
+                <div class="data-status-value">{escape(source_scope)}</div>
+            </div>
+        </div>
+        <div class="table-note" style="margin-top:10px;">{escape(note_text)}</div>
+    </div>
+    """
+
+
 def render_change_table(frame: pd.DataFrame, limit: int = 7) -> None:
     display = frame.tail(limit).copy()
     rows = []
@@ -1345,6 +1490,22 @@ def official_channel_buttons(channels: pd.DataFrame, candidate: str) -> None:
     for col, (_, row) in zip(cols, data.iterrows()):
         with col:
             st.link_button(str(row["channel"]), str(row["url"]), width="stretch")
+
+
+def official_channel_strip(channels: pd.DataFrame, candidate: str) -> str:
+    data = channels[channels["candidate"].eq(candidate)]
+    if data.empty:
+        return ""
+    links = "".join(
+        f'<a class="official-channel-link" href="{escape(str(row["url"]), quote=True)}" target="_blank" rel="noopener noreferrer">{escape(str(row["channel"]))}</a>'
+        for _, row in data.iterrows()
+    )
+    return f"""
+    <div class="official-channel-strip">
+        <div class="official-channel-title">{escape(candidate)} 공식 채널</div>
+        <div class="official-channel-links">{links}</div>
+    </div>
+    """
 
 
 def rank_badge(value: int | float) -> str:

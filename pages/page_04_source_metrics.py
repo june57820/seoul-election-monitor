@@ -40,16 +40,17 @@ def _context_filters() -> tuple[str, str]:
     return issue, source
 
 
-def _mood_bar(period_key: str, issue: str, source: str) -> None:
+def _mood_timeseries(period_key: str, issue: str, source: str) -> None:
     detail = get_issue_detail_timeseries(period_key, issue, source, "반응량")
     grouped = (
-        detail.groupby("candidate", as_index=False)
+        detail.groupby(["date", "candidate"], as_index=False)
         .agg(
             favorable_count=("favorable_count", "sum"),
             neutral_count=("neutral_count", "sum"),
             critical_count=("critical_count", "sum"),
             reaction_count=("reaction_count", "sum"),
         )
+        .sort_values("date")
     )
     fig = go.Figure()
     mapping = [
@@ -57,20 +58,25 @@ def _mood_bar(period_key: str, issue: str, source: str) -> None:
         ("중립 표현", "neutral_count", "#94a3b8"),
         ("비판 표현", "critical_count", "#ef3340"),
     ]
-    for label, column, color in mapping:
-        fig.add_trace(
-            go.Bar(
-                y=grouped["candidate"],
-                x=grouped[column],
-                name=label,
-                orientation="h",
-                marker_color=color,
-                hovertemplate="%{y}<br>" + label + ": %{x:,}건<extra></extra>",
+    for candidate in CANDIDATE_ORDER:
+        data = grouped[grouped["candidate"].eq(candidate)]
+        dash = "solid" if candidate == "정원오" else "dash"
+        symbol = "circle" if candidate == "정원오" else "diamond"
+        for label, column, color in mapping:
+            fig.add_trace(
+                go.Scatter(
+                    x=data["date"],
+                    y=data[column],
+                    name=f"{candidate} {label}",
+                    mode="lines+markers",
+                    line=dict(color=color, width=3, dash=dash),
+                    marker=dict(size=7, color=color, symbol=symbol),
+                    hovertemplate="%{x|%Y.%m.%d}<br>" + candidate + " " + label + ": %{y:,}건<extra></extra>",
+                )
             )
-        )
-    fig.update_layout(barmode="stack")
-    fig.update_xaxes(tickformat=",")
-    st.plotly_chart(ui.styled_plotly(fig, height=260), width="stretch")
+    fig.update_yaxes(tickformat=",", title="표현 수")
+    fig.update_xaxes(title=None)
+    st.plotly_chart(ui.styled_plotly(fig, height=300), width="stretch")
 
 
 def _mood_cards(period_key: str, issue: str, source: str) -> None:
@@ -97,21 +103,12 @@ def _mood_cards(period_key: str, issue: str, source: str) -> None:
 def _data_method_card(period_key: str, context: dict) -> None:
     status = get_collection_status(period_key)
     st.markdown(
-        f"""
-        <div class="card">
-            <div class="section-title" style="margin-top:0"><h2>데이터 안내</h2></div>
-            <ul style="margin:0; padding-left:18px; line-height:1.8;">
-                <li>수집 기간: {context['range_text']}</li>
-                <li>마지막 업데이트: {status['updated_at']}</li>
-                <li>수집 출처: {status['source_scope']}</li>
-                <li>수집 규모: {format_number(status['total_items'])}건</li>
-            </ul>
-            <div class="note-card" style="margin-top:14px;">
-                반응 분위기 분석은 공개 텍스트를 우호 표현, 중립 표현, 비판 표현으로 분류한 데모 결과입니다.
-                공개 온라인 반응 데모용 seed data 기준입니다.
-            </div>
-        </div>
-        """,
+        ui.collection_status_card(
+            status,
+            context,
+            title="데이터 안내",
+            note="반응 분위기 분석은 공개 텍스트를 우호 표현, 중립 표현, 비판 표현으로 분류한 데모 결과입니다. 공개 온라인 반응 데모용 seed data 기준입니다.",
+        ),
         unsafe_allow_html=True,
     )
 
@@ -134,8 +131,8 @@ def render(data: dict, period_key: str, context: dict) -> None:
 
     left, right = st.columns([1.25, 0.75], gap="large")
     with left:
-        ui.section_title("우호·중립·비판 표현 분포", f"{issue} · {SOURCE_LABELS.get(source, '전체 출처')}")
-        _mood_bar(period_key, issue, source)
+        ui.section_title("후보별 우호·중립·비판 표현 시계열", f"{issue} · {SOURCE_LABELS.get(source, '전체 출처')}")
+        _mood_timeseries(period_key, issue, source)
         _mood_cards(period_key, issue, source)
     with right:
         _data_method_card(period_key, context)
